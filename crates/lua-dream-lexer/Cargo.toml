@@ -1,0 +1,8 @@
+[package]
+name = "lua-dream-lexer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = "2.0.18"
+utf8-chars = "3.0.6"
