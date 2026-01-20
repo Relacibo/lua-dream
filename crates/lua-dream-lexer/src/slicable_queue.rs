@@ -61,17 +61,16 @@ impl<T> SlicableQueue<T> {
             return None;
         }
 
-        let mut elem = MaybeUninit::uninit();
-
-        std::mem::swap(&mut elem, &mut self.content[self.start_index]);
-
         // SAFETY: element has not been popped yet, as that is only the case for elements before start_index
-        let res = unsafe { elem.assume_init() };
+        //         We don't use the technically still initialized elem at start_index after that and treat it as uninit.
+        let res = unsafe { self.content[self.start_index].assume_init_read() };
+
         self.start_index += 1;
         if self.start_index >= self.content.len() {
             // Hold up invariant: if queue is empty,
             // then content is also empty and the other way round
-            self.clear();
+            self.content.clear();
+            self.start_index = 0;
         }
         Some(res)
     }
@@ -96,6 +95,13 @@ impl<T> SlicableQueue<T> {
     }
 
     pub fn clear(&mut self) {
+        // Drop remaining elements
+        for elem in &mut self.content[self.start_index..] {
+            // SAFETY: Only elems before start_index are uninit, after that they are all init
+            unsafe {
+                elem.assume_init_drop();
+            }
+        }
         self.content.clear();
         self.start_index = 0;
     }
