@@ -13,7 +13,7 @@ pub struct SlicableQueue<T> {
 impl<T> Drop for SlicableQueue<T> {
     fn drop(&mut self) {
         for elem in &mut self.content[self.start_index..] {
-            // SAFETY: Only elems before start_index are uninit
+            // SAFETY: Only elems before start_index are uninit, after that they are all init
             unsafe {
                 elem.assume_init_drop();
             }
