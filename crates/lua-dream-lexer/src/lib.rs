@@ -1,11 +1,14 @@
-pub mod ast;
 pub mod error;
 pub mod slicable_queue;
 pub mod token;
 
 use std::{io::BufRead, path::Path};
 
-use crate::{error::LexerError, slicable_queue::SlicableQueue, token::Token};
+use crate::{
+    error::LexerError,
+    slicable_queue::SlicableQueue,
+    token::{Token, TokenKind},
+};
 
 use utf8_chars::BufReadCharsExt;
 
@@ -15,8 +18,8 @@ struct Cursor {
     column: usize,
 }
 
-struct Lexer<'a, T: BufRead + ?Sized> {
-    file_path: &'a Path,
+pub struct Lexer<'a, T: BufRead + ?Sized> {
+    file_path: Option<&'a Path>,
     chars: utf8_chars::Chars<'a, T>,
     cursor: Cursor,
     peek_buf: SlicableQueue<char>,
@@ -24,7 +27,7 @@ struct Lexer<'a, T: BufRead + ?Sized> {
 }
 
 impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
-    pub(crate) fn new(file_path: &'a Path, reader: &'a mut T) -> Self {
+    pub fn new(file_path: Option<&'a Path>, reader: &'a mut T) -> Self {
         Self {
             file_path,
             chars: reader.chars(),
@@ -34,11 +37,11 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         }
     }
 
-    pub(crate) fn cursor(&self) -> &Cursor {
+    fn cursor(&self) -> &Cursor {
         &self.cursor
     }
 
-    pub(crate) fn peek(&mut self, num: usize) -> std::io::Result<&[char]> {
+    fn peek(&mut self, num: usize) -> std::io::Result<&[char]> {
         let Self {
             chars, peek_buf, ..
         } = self;
@@ -59,7 +62,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         Ok(&peek_buf[..num])
     }
 
-    pub(crate) fn peeking_take_while(
+    fn peeking_take_while(
         &mut self,
         buf: &mut String,
         mut f: impl FnMut(&char) -> bool,
@@ -78,7 +81,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         }
     }
 
-    pub(crate) fn take_while(
+    fn take_while(
         &mut self,
         buf: &mut String,
         mut f: impl FnMut(char) -> bool,
@@ -94,10 +97,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         }
     }
 
-    pub(crate) fn skip_while(
-        &mut self,
-        mut f: impl FnMut(char) -> bool,
-    ) -> std::io::Result<Option<char>> {
+    fn skip_while(&mut self, mut f: impl FnMut(char) -> bool) -> std::io::Result<Option<char>> {
         loop {
             let Some(c) = self.next()? else {
                 return Ok(None);
@@ -156,40 +156,44 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                 break;
             };
 
-            let token = match next_char {
+            let column_start = self.cursor.column;
+            let line_start = self.cursor.line;
+
+            let kind = match next_char {
                 c if c.is_ascii_whitespace() => continue,
                 '=' if self.peek(1)? == ['='] => {
                     let _ = self.next();
-                    Token::OpEq
+                    TokenKind::Eq
                 }
-                '=' => Token::OpAssign,
+                '=' => TokenKind::Assign,
                 '~' if self.peek(1)? == ['='] => {
                     let _ = self.next();
-                    Token::OpNotEq
+                    TokenKind::Ne
                 }
                 '<' if self.peek(1)? == ['='] => {
                     let _ = self.next();
-                    Token::OpLessEq
+                    TokenKind::Le
                 }
                 '<' if self.peek(1)? == ['<'] => {
                     let _ = self.skip(1);
-                    Token::OpShiftLeft
+                    TokenKind::Shl
                 }
-                '<' => Token::OpLess,
+                '<' => TokenKind::Lt,
                 '>' if self.peek(1)? == ['='] => {
                     let _ = self.next();
-                    Token::OpGreaterEq
+                    TokenKind::Ge
                 }
                 '>' if self.peek(1)? == ['>'] => {
                     let _ = self.skip(1);
-                    Token::OpShiftRight
+                    TokenKind::Shr
                 }
-                '>' => Token::OpGreater,
+                '>' => TokenKind::Gt,
                 '-' if self.peek(1)? == ['-'] => {
-                    let peeked = self.peek(3)?;
+                    let _ = self.skip(1);
+                    let peeked = self.peek(2)?;
                     match peeked {
-                        [_, '[', '['] => {
-                            let _ = self.skip(3);
+                        ['[', '['] => {
+                            let _ = self.skip(2);
                             let mut last_char = ' ';
                             self.skip_while(|c| {
                                 if last_char == ']' && c == ']' {
@@ -200,23 +204,26 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                             })?;
                         }
                         _ => {
-                            let _ = self.skip(1);
                             self.skip_while(|c| c != '\n')?;
                         }
                     };
                     continue;
                 }
-                '+' => Token::OpPlus,
-                '-' => Token::OpMinus,
-                '/' => Token::OpDiv,
-                '*' => Token::OpMul,
-                '^' => Token::OpXor,
-                '%' => Token::OpMod,
-                '&' => Token::OpBitwiseAnd,
-                '|' => Token::OpBitwiseOr,
-                '~' => Token::OpBitwiseNot,
-                '(' => Token::ParenOpen,
-                ')' => Token::ParenClose,
+                '+' => TokenKind::Plus,
+                '-' => TokenKind::Minus,
+                '/' if self.peek(1)? == ['/'] => {
+                    let _ = self.skip(1);
+                    TokenKind::FloorDiv
+                }
+                '/' => TokenKind::Div,
+                '*' => TokenKind::Mul,
+                '^' => TokenKind::Pow,
+                '%' => TokenKind::Mod,
+                '&' => TokenKind::BitAnd,
+                '|' => TokenKind::BitOr,
+                '~' => TokenKind::BitXor,
+                '(' => TokenKind::ParenOpen,
+                ')' => TokenKind::ParenClose,
                 '[' if self.peek(1)? == ['['] => {
                     let _ = self.skip(1);
                     let mut last_char = ' ';
@@ -234,25 +241,29 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     buf.pop();
                     let mut buf2 = String::new();
                     std::mem::swap(&mut buf, &mut buf2);
-                    Token::LiteralString(buf2)
+                    TokenKind::LiteralString(buf2)
                 }
-                '[' => Token::BracketsOpen,
-                ']' => Token::BracketsClose,
-                '{' => Token::CurlyBracesOpen,
-                '}' => Token::CurlyBracesClose,
-                ',' => Token::Comma,
-                ';' => Token::SemiColon,
-                ':' => Token::Colon,
+                '[' => TokenKind::BracketsOpen,
+                ']' => TokenKind::BracketsClose,
+                '{' => TokenKind::CurlyBracesOpen,
+                '}' => TokenKind::CurlyBracesClose,
+                ',' => TokenKind::Comma,
+                ';' => TokenKind::Semicolon,
+                ':' if self.peek(1)? == [':'] => {
+                    let _ = self.skip(1);
+                    TokenKind::DoubleColon
+                }
+                ':' => TokenKind::Colon,
                 '.' if self.peek(1)? == ['.'] => {
                     let _ = self.skip(1);
                     if self.peek(1)? == ['.'] {
                         let _ = self.skip(1);
-                        Token::Varargs
+                        TokenKind::Varargs
                     } else {
-                        Token::OpConcat
+                        TokenKind::Concat
                     }
                 }
-                '#' => Token::OpLength,
+                '#' => TokenKind::Len,
                 '"' | '\'' => {
                     let Some(res) = self.take_while(&mut buf, |c| c != next_char && c != '\n')?
                     else {
@@ -265,7 +276,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     }
                     let mut buf2 = String::new();
                     std::mem::swap(&mut buf, &mut buf2);
-                    Token::LiteralString(buf2)
+                    TokenKind::LiteralString(buf2)
                 }
                 n if n.is_numeric() => {
                     buf.push(n);
@@ -278,34 +289,51 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                         c.is_numeric()
                     })?;
 
-                    let Ok(num) = buf.parse() else {
-                        self.print_state();
-                        todo!("Error: parsing number failed")
-                    };
-                    buf.clear();
-                    Token::LiteralNumber(num)
+                    if dot_appeared {
+                        let Ok(num) = buf.parse() else {
+                            self.print_state();
+                            todo!("Error: parsing number failed")
+                        };
+                        buf.clear();
+                        TokenKind::LiteralFloat(num)
+                    } else {
+                        let Ok(num) = buf.parse() else {
+                            self.print_state();
+                            todo!("Error: parsing number failed")
+                        };
+                        buf.clear();
+                        TokenKind::LiteralInt(num)
+                    }
                 }
                 a if a.is_alphabetic() || a == '_' => {
                     buf.push(a);
                     self.peeking_take_while(&mut buf, |c| c.is_alphanumeric() || *c == '_')?;
                     let token = match buf.as_str() {
-                        "if" => Token::KeywordIf,
-                        "then" => Token::KeywordThen,
-                        "else" => Token::KeywordElse,
-                        "elseif" => Token::KeywordElseIf,
-                        "end" => Token::KeywordEnd,
-                        "function" => Token::KeywordFunction,
-                        "local" => Token::KeywordLocal,
-                        "return" => Token::KeywordReturn,
-                        "and" => Token::KeywordAnd,
-                        "or" => Token::KeywordOr,
-                        "not" => Token::KeywordNot,
-                        "true" => Token::LiteralBoolean(true),
-                        "false" => Token::LiteralBoolean(false),
+                        "if" => TokenKind::KeywordIf,
+                        "then" => TokenKind::KeywordThen,
+                        "else" => TokenKind::KeywordElse,
+                        "elseif" => TokenKind::KeywordElseIf,
+                        "end" => TokenKind::KeywordEnd,
+                        "function" => TokenKind::KeywordFunction,
+                        "local" => TokenKind::KeywordLocal,
+                        "return" => TokenKind::KeywordReturn,
+                        "and" => TokenKind::And,
+                        "or" => TokenKind::Or,
+                        "not" => TokenKind::Not,
+                        "true" => TokenKind::LiteralBoolean(true),
+                        "false" => TokenKind::LiteralBoolean(false),
+                        "while" => TokenKind::KeywordWhile,
+                        "do" => TokenKind::KeywordDo,
+                        "break" => TokenKind::KeywordBreak,
+                        "repeat" => TokenKind::KeywordRepeat,
+                        "until" => TokenKind::KeywordUntil,
+                        "goto" => TokenKind::KeywordGoto,
+                        "for" => TokenKind::KeywordFor,
+                        "nil" => TokenKind::LiteralNil,
                         _ => {
                             let mut buf2 = String::new();
                             std::mem::swap(&mut buf, &mut buf2);
-                            Token::Identifier(buf2)
+                            TokenKind::Identifier(buf2)
                         }
                     };
                     buf.clear();
@@ -316,20 +344,26 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     unimplemented!("{next_char}")
                 }
             };
-            tokens.push(token);
+            tokens.push(Token {
+                kind,
+                line: line_start,
+                column: column_start,
+            });
         }
-        tokens.push(Token::Eof);
+        tokens.push(Token {
+            kind: TokenKind::Eof,
+            line: self.cursor.line,
+            column: 1,
+        });
         Ok(tokens)
     }
 
-    pub(crate) fn print_state(&self) {
+    fn print_state(&self) {
         println!("State:");
-        println!(
-            "  {}:{}:{}",
-            self.file_path.to_string_lossy(),
-            self.cursor.line,
-            self.cursor.column
-        );
+        if let Some(fp) = self.file_path {
+            print!("{}:", fp.to_string_lossy());
+        }
+        println!("  {}:{}", self.cursor.line, self.cursor.column);
     }
 }
 
