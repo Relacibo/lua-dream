@@ -222,23 +222,44 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                 '>' => TokenKind::Gt,
                 '-' if self.peek(1)? == ['-'] => {
                     let _ = self.skip(1);
-                    let peeked = self.peek(2)?;
-                    match peeked {
-                        ['[', '['] => {
-                            let _ = self.skip(2);
-                            let mut last_char = ' ';
-                            self.skip_while(|c| {
-                                if last_char == ']' && c == ']' {
-                                    return false;
-                                }
-                                last_char = c;
-                                true
-                            })?;
+                    let mut eq_count = 0;
+                    if self.peek_while(|c| {
+                        if *c == '=' {
+                            eq_count += 1;
+                            true
+                        } else {
+                            false
                         }
-                        _ => {
-                            self.skip_while(|c| c != '\n')?;
-                        }
-                    };
+                    })? == Some(&'[')
+                    {
+                        let _ = self.skip(eq_count + 1);
+                        let mut curr_eq_count = None;
+                        let Some(_) = self.skip_while(|c| {
+                            should_continue_multiline(eq_count, &mut curr_eq_count, c)
+                        })?
+                        else {
+                            self.print_state();
+                            todo!("Error: parsing string failed");
+                        };
+                    } else {
+                        self.skip_while(|c| c != '\n')?;
+                    }
+                    // match peeked {
+                    //     ['[', '['] => {
+                    //         let _ = self.skip(2);
+                    //         let mut last_char = ' ';
+                    //         self.skip_while(|c| {
+                    //             if last_char == ']' && c == ']' {
+                    //                 return false;
+                    //             }
+                    //             last_char = c;
+                    //             true
+                    //         })?;
+                    //     }
+                    //     _ => {
+                    //         self.skip_while(|c| c != '\n')?;
+                    //     }
+                    // };
                     continue;
                 }
                 '+' => TokenKind::Plus,
@@ -268,33 +289,16 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     })? == Some(&'[')
                     {
                         let _ = self.skip(eq_count + 1);
-                        // TODO: Don't use VecDeque, just count = after ]
-                        let mut last_chars = VecDeque::<char>::with_capacity(eq_count + 2);
+                        let mut curr_eq_count = None;
                         let Some(_) = self.take_while(&mut buf, |c| {
-                            if last_chars.len() >= eq_count + 2 {
-                                last_chars.pop_back();
-                            }
-                            last_chars.push_front(c);
-                            let mut l = last_chars.iter();
-                            if l.next() != Some(&']') {
-                                return true;
-                            }
-                            for _ in 0..eq_count {
-                                if l.next() != Some(&'=') {
-                                    return true;
-                                }
-                            }
-                            if l.next() != Some(&']') {
-                                return true;
-                            }
-                            false
+                            should_continue_multiline(eq_count, &mut curr_eq_count, c)
                         })?
                         else {
                             self.print_state();
                             todo!("Error: parsing string failed");
                         };
-                        // TODO: Delete = and ] and the end
-                        buf.truncate(buf.len() - 2 - eq_count);
+
+                        buf.truncate(buf.len() - 1 - eq_count);
                         let mut buf2 = String::new();
                         std::mem::swap(&mut buf, &mut buf2);
                         TokenKind::LiteralString(buf2)
@@ -423,6 +427,26 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         }
         println!("  {}:{}", self.cursor.line, self.cursor.column);
     }
+}
+
+fn should_continue_multiline(
+    target_eq_count: usize,
+    eq_count: &mut Option<usize>,
+    c: char,
+) -> bool {
+    if let Some(cec) = eq_count {
+        if *cec >= target_eq_count {
+            if c == ']' {
+                return false;
+            }
+            *eq_count = None;
+        } else if c == '=' {
+            *cec += 1;
+        }
+    } else if c == ']' {
+        *eq_count = Some(0);
+    }
+    true
 }
 
 mod tests {
