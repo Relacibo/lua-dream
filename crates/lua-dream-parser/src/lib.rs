@@ -16,7 +16,7 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> Block {
         Block {
             stats: Vec::new(),
-            res_stmt: None,
+            ctrl_stmt: None,
         }
     }
 }

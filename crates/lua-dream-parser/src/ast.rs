@@ -1,11 +1,11 @@
 #[derive(Clone, Debug)]
 pub struct Block {
     pub stats: Vec<Stmt>,
-    pub res_stmt: Option<ResStmt>,
+    pub ctrl_stmt: Option<CtrlStmt>,
 }
 
 #[derive(Clone, Debug)]
-pub enum ResStmt {
+pub enum CtrlStmt {
     Return(Option<Expr>),
     Break,
 }
