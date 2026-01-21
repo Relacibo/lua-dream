@@ -62,11 +62,29 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         Ok(&peek_buf[..num])
     }
 
-    fn peek_while(&mut self, mut f: impl FnMut(&char) -> bool) -> std::io::Result<&char> {
-        let Self {
-            chars, peek_buf, ..
-        } = self;
-        todo!()
+    fn peek_while(&mut self, mut f: impl FnMut(&char) -> bool) -> std::io::Result<Option<&char>> {
+        let mut i = 0;
+        loop {
+            let c = if let Some(c) = &mut self.peek_buf.get(i) {
+                c
+            } else {
+                let Some(res) = self.chars.next() else {
+                    return Ok(None);
+                };
+                match res {
+                    Ok(c) => {
+                        self.peek_buf.push_back(c);
+                    }
+                    Err(err) => return Err(err),
+                }
+                &self.peek_buf[i]
+            };
+            if !f(c) {
+                break;
+            }
+            i += 1;
+        }
+        Ok(Some(&self.peek_buf[i]))
     }
 
     fn peeking_take_while(
@@ -247,9 +265,10 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                         } else {
                             false
                         }
-                    })? == &'['
+                    })? == Some(&'[')
                     {
                         let _ = self.skip(eq_count + 1);
+                        // TODO: Don't use VecDeque, just count = after ]
                         let mut last_chars = VecDeque::<char>::with_capacity(eq_count + 2);
                         let Some(_) = self.take_while(&mut buf, |c| {
                             if last_chars.len() >= eq_count + 2 {
@@ -257,7 +276,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                             }
                             last_chars.push_front(c);
                             let mut l = last_chars.iter();
-                            if l.next() != Some(&'[') {
+                            if l.next() != Some(&']') {
                                 return true;
                             }
                             for _ in 0..eq_count {
@@ -265,7 +284,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                                     return true;
                                 }
                             }
-                            if l.next() != Some(&'[') {
+                            if l.next() != Some(&']') {
                                 return true;
                             }
                             false
@@ -274,7 +293,8 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                             self.print_state();
                             todo!("Error: parsing string failed");
                         };
-                        buf.pop();
+                        // TODO: Delete = and ] and the end
+                        buf.truncate(buf.len() - 2 - eq_count);
                         let mut buf2 = String::new();
                         std::mem::swap(&mut buf, &mut buf2);
                         TokenKind::LiteralString(buf2)

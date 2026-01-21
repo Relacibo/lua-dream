@@ -105,6 +105,12 @@ impl<T> SlicableQueue<T> {
         self.content.clear();
         self.start_index = 0;
     }
+
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.content
+            .get(self.start_index + index)
+            .map(|c| unsafe { c.assume_init_ref() })
+    }
 }
 
 impl<T> Index<Range<usize>> for SlicableQueue<T> {
@@ -125,5 +131,15 @@ impl<T> Index<RangeFrom<usize>> for SlicableQueue<T> {
     type Output = [T];
     fn index(&self, range_from: RangeFrom<usize>) -> &Self::Output {
         &self.as_slice()[range_from]
+    }
+}
+
+impl<T> Index<usize> for SlicableQueue<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        let elem = &self.content[self.start_index + index];
+        // SAFETY: If index is to high, it would have already panicked
+        //         We are only accessing elem after start_index, so not uninit
+        unsafe { elem.assume_init_ref() }
     }
 }
