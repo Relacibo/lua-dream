@@ -24,6 +24,7 @@ pub enum Expr {
         left: Box<Expr>,
         right: Box<Expr>,
     },
+    Goto(String),
     Table(Vec<TableRow>),
 }
 
@@ -35,15 +36,30 @@ pub enum FnArg {
 
 #[derive(Clone, Debug)]
 pub enum Stmt {
-    AssignLocal { name: String, val: Expr },
-    AssignGlobal { name: String, val: Expr },
+    AssignLocal {
+        name: String,
+        val: Expr,
+        attr: Option<Attr>,
+    },
+    AssignGlobal {
+        name: String,
+        val: Expr,
+        attr: Option<Attr>,
+    },
+    Label(String),
     Expr(Expr),
+}
+
+#[derive(Clone, Debug)]
+pub enum Attr {
+    Const,
+    Close,
 }
 
 #[derive(Clone, Debug)]
 pub struct TableRow {
     pub key: Expr,
-    pub value: Expr,
+    pub val: Expr,
 }
 
 #[derive(Clone, Debug)]
@@ -52,6 +68,7 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    DivFloor,
     Mod,
     Pow,
     Eq,

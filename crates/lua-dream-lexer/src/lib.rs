@@ -2,7 +2,7 @@ pub mod error;
 pub mod slicable_queue;
 pub mod token;
 
-use std::{io::BufRead, path::Path};
+use std::{collections::VecDeque, io::BufRead, path::Path};
 
 use crate::{
     error::LexerError,
@@ -60,6 +60,13 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         }
 
         Ok(&peek_buf[..num])
+    }
+
+    fn peek_while(&mut self, mut f: impl FnMut(&char) -> bool) -> std::io::Result<&char> {
+        let Self {
+            chars, peek_buf, ..
+        } = self;
+        todo!()
     }
 
     fn peeking_take_while(
@@ -151,6 +158,13 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
     pub fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = Vec::new();
         let mut buf = String::new();
+
+        // skip Shebang
+        if self.peek(2)? == ['#', '!'] {
+            let _ = self.skip(2);
+            self.skip_while(|c| c != '\n')?;
+        }
+
         loop {
             let Some(next_char) = self.next()? else {
                 break;
@@ -168,11 +182,11 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                 '=' => TokenKind::Assign,
                 '~' if self.peek(1)? == ['='] => {
                     let _ = self.next();
-                    TokenKind::Ne
+                    TokenKind::Neq
                 }
                 '<' if self.peek(1)? == ['='] => {
                     let _ = self.next();
-                    TokenKind::Le
+                    TokenKind::Leq
                 }
                 '<' if self.peek(1)? == ['<'] => {
                     let _ = self.skip(1);
@@ -181,7 +195,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                 '<' => TokenKind::Lt,
                 '>' if self.peek(1)? == ['='] => {
                     let _ = self.next();
-                    TokenKind::Ge
+                    TokenKind::Geq
                 }
                 '>' if self.peek(1)? == ['>'] => {
                     let _ = self.skip(1);
@@ -224,26 +238,50 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                 '~' => TokenKind::BitXor,
                 '(' => TokenKind::ParenOpen,
                 ')' => TokenKind::ParenClose,
-                '[' if self.peek(1)? == ['['] => {
-                    let _ = self.skip(1);
-                    let mut last_char = ' ';
-                    let Some(_) = self.take_while(&mut buf, |c| {
-                        if last_char == ']' && c == ']' {
-                            return false;
+                '[' => {
+                    let mut eq_count = 0;
+                    if self.peek_while(|c| {
+                        if *c == '=' {
+                            eq_count += 1;
+                            true
+                        } else {
+                            false
                         }
-                        last_char = c;
-                        true
-                    })?
-                    else {
-                        self.print_state();
-                        todo!("Error: parsing string failed");
-                    };
-                    buf.pop();
-                    let mut buf2 = String::new();
-                    std::mem::swap(&mut buf, &mut buf2);
-                    TokenKind::LiteralString(buf2)
+                    })? == &'['
+                    {
+                        let _ = self.skip(eq_count + 1);
+                        let mut last_chars = VecDeque::<char>::with_capacity(eq_count + 2);
+                        let Some(_) = self.take_while(&mut buf, |c| {
+                            if last_chars.len() >= eq_count + 2 {
+                                last_chars.pop_back();
+                            }
+                            last_chars.push_front(c);
+                            let mut l = last_chars.iter();
+                            if l.next() != Some(&'[') {
+                                return true;
+                            }
+                            for _ in 0..eq_count {
+                                if l.next() != Some(&'=') {
+                                    return true;
+                                }
+                            }
+                            if l.next() != Some(&'[') {
+                                return true;
+                            }
+                            false
+                        })?
+                        else {
+                            self.print_state();
+                            todo!("Error: parsing string failed");
+                        };
+                        buf.pop();
+                        let mut buf2 = String::new();
+                        std::mem::swap(&mut buf, &mut buf2);
+                        TokenKind::LiteralString(buf2)
+                    } else {
+                        TokenKind::BracketsOpen
+                    }
                 }
-                '[' => TokenKind::BracketsOpen,
                 ']' => TokenKind::BracketsClose,
                 '{' => TokenKind::CurlyBracesOpen,
                 '}' => TokenKind::CurlyBracesClose,
