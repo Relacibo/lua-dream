@@ -12,7 +12,8 @@ pub enum CtrlStmt {
 
 #[derive(Clone, Debug)]
 pub enum Expr {
-    Number(f64),
+    Double(f64),
+    Integer(i64),
     String(String),
     Boolean(bool),
     UnaryOp {
