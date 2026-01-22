@@ -23,7 +23,7 @@ local logic = 10 == 20 or 5 ~= 3 and not false
 -- String Concatenation and Length
 local greeting = "Hello " .. 'World'
 local size = #"Length Operator"
-?
+
 -- Tables (The heart of Lua)
 local config = {
   key = "value",
@@ -78,5 +78,19 @@ local output = config:get_data()
 
 -- Bitwise Operators & Floor Division
 local bitwise = 5 & 3 | 2 ~ 1 << 1 >> 2 // 1
+
+-- Test für Escape-Sequenzen in kurzen Strings
+local escapes = "Tab: [\t] Newline: [\n] Quote: [\"'] Backslash: [\\]"
+local numeric = "Hex: \x41 (A) Dezimal: \97 (a)"
+local unicode = "UTF-8: \u{20AC} (€)"
+
+-- Der \z Escape (ignoriert Whitespace und Zeilenumbrüche)
+local long_line = "Das ist ein \z
+                   sehr langer String, \z
+                   der im Code schön eingerückt ist."
+
+-- Ein Backslash am Ende der Zeile (erzeugt ein echtes Newline)
+local line_break = "Erste Zeile\
+Zweite Zeile"
 
 -- End of file

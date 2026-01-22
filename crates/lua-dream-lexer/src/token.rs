@@ -1,5 +1,3 @@
-// TODO:
-//   - escape sequences in strings
 #[derive(Clone, Debug)]
 pub enum TokenKind {
     Identifier(String),
