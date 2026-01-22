@@ -341,7 +341,6 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     loop {
                         match self.next()? {
                             Some('\\') => {
-                                // ESCAPE LOGIK
                                 match self.next()? {
                                     Some('n') => string_builder.push('\n'),
                                     Some('t') => string_builder.push('\t'),
