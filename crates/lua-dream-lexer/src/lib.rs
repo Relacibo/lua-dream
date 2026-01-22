@@ -221,7 +221,8 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                 }
                 '>' => TokenKind::Gt,
                 '-' if self.peek(1)? == ['-'] => {
-                    let _ = self.skip(1);
+                    self.skip(1)?;
+
                     let mut eq_count = 0;
                     if self.peek_while(|c| {
                         if *c == '=' {
@@ -232,34 +233,22 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                         }
                     })? == Some(&'[')
                     {
-                        let _ = self.skip(eq_count + 1);
-                        let mut curr_eq_count = None;
-                        let Some(_) = self.skip_while(|c| {
-                            should_continue_multiline(eq_count, &mut curr_eq_count, c)
-                        })?
-                        else {
-                            self.print_state();
-                            todo!("Error: parsing string failed");
-                        };
+                        self.skip(eq_count + 1)?;
+                        let seq_len = eq_count + 2;
+
+                        loop {
+                            if is_end_sequence(self.peek(seq_len)?, eq_count) {
+                                let _ = self.skip(seq_len);
+                                break;
+                            }
+
+                            if self.next()?.is_none() {
+                                break;
+                            }
+                        }
                     } else {
                         self.skip_while(|c| c != '\n')?;
                     }
-                    // match peeked {
-                    //     ['[', '['] => {
-                    //         let _ = self.skip(2);
-                    //         let mut last_char = ' ';
-                    //         self.skip_while(|c| {
-                    //             if last_char == ']' && c == ']' {
-                    //                 return false;
-                    //             }
-                    //             last_char = c;
-                    //             true
-                    //         })?;
-                    //     }
-                    //     _ => {
-                    //         self.skip_while(|c| c != '\n')?;
-                    //     }
-                    // };
                     continue;
                 }
                 '+' => TokenKind::Plus,
@@ -289,19 +278,21 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     })? == Some(&'[')
                     {
                         let _ = self.skip(eq_count + 1);
-                        let mut curr_eq_count = None;
-                        let Some(_) = self.take_while(&mut buf, |c| {
-                            should_continue_multiline(eq_count, &mut curr_eq_count, c)
-                        })?
-                        else {
-                            self.print_state();
-                            todo!("Error: parsing string failed");
-                        };
+                        let seq_len = eq_count + 2;
 
-                        buf.truncate(buf.len() - 1 - eq_count);
-                        let mut buf2 = String::new();
-                        std::mem::swap(&mut buf, &mut buf2);
-                        TokenKind::LiteralString(buf2)
+                        let mut string_content = String::new();
+                        loop {
+                            if is_end_sequence(self.peek(seq_len)?, eq_count) {
+                                let _ = self.skip(seq_len);
+                                break;
+                            }
+
+                            match self.next()? {
+                                Some(c) => string_content.push(c),
+                                None => todo!("Error: Unexpected file end"),
+                            }
+                        }
+                        TokenKind::LiteralString(string_content)
                     } else {
                         TokenKind::BracketsOpen
                     }
@@ -340,31 +331,54 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     std::mem::swap(&mut buf, &mut buf2);
                     TokenKind::LiteralString(buf2)
                 }
-                n if n.is_numeric() => {
-                    buf.push(n);
-                    let mut dot_appeared = false;
+                n if n.is_ascii_digit() || n == '.' => {
+                    let mut buf = String::new();
+                    let mut has_exp = false;
+
+                    let (is_hex, mut has_dot, exp_char, mut last_char) =
+                        if n == '0' && self.peek(1)? == ['x'] {
+                            self.skip(1)?;
+                            (true, false, 'p', 'x')
+                        } else {
+                            buf.push(n);
+                            (false, n == '.', 'e', n)
+                        };
+
+                    // Generously take everything, that could be part of a number
                     self.peeking_take_while(&mut buf, |c| {
-                        if !dot_appeared && *c == '.' {
-                            dot_appeared = true;
-                            return true;
+                        match c {
+                            '.' if !has_dot => {
+                                has_dot = true;
+                            }
+                            'a'..='f' | 'A'..='F' if is_hex && !has_exp => {}
+                            '+' | '-' if last_char.eq_ignore_ascii_case(&exp_char) => {}
+                            c if c.eq_ignore_ascii_case(&exp_char) => {
+                                has_exp = true;
+                            }
+                            c if is_hex && c.is_ascii_hexdigit() => {}
+                            c if c.is_numeric() => {}
+                            _ => {
+                                return false;
+                            }
                         }
-                        c.is_numeric()
+                        last_char = *c;
+                        true
                     })?;
 
-                    if dot_appeared {
-                        let Ok(num) = buf.parse() else {
-                            self.print_state();
-                            todo!("Error: parsing number failed")
-                        };
-                        buf.clear();
-                        TokenKind::LiteralFloat(num)
+                    if is_hex {
+                        if has_dot || has_exp {
+                            let val = parse_lua_hex_float(&buf);
+                            TokenKind::LiteralFloat(val)
+                        } else {
+                            let val = i64::from_str_radix(&buf, 16).expect("Invalid hex int");
+                            TokenKind::LiteralInt(val)
+                        }
+                    } else if has_dot || has_exp {
+                        let val: f64 = buf.parse().expect("Invalid float");
+                        TokenKind::LiteralFloat(val)
                     } else {
-                        let Ok(num) = buf.parse() else {
-                            self.print_state();
-                            todo!("Error: parsing number failed")
-                        };
-                        buf.clear();
-                        TokenKind::LiteralInt(num)
+                        let val: i64 = buf.parse().expect("Invalid int");
+                        TokenKind::LiteralInt(val)
                     }
                 }
                 a if a.is_alphabetic() || a == '_' => {
@@ -429,24 +443,45 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
     }
 }
 
-fn should_continue_multiline(
-    target_eq_count: usize,
-    eq_count: &mut Option<usize>,
-    c: char,
-) -> bool {
-    if let Some(cec) = eq_count {
-        if *cec >= target_eq_count {
-            if c == ']' {
-                return false;
-            }
-            *eq_count = None;
-        } else if c == '=' {
-            *cec += 1;
-        }
-    } else if c == ']' {
-        *eq_count = Some(0);
+fn is_end_sequence(seq: &[char], eq_count: usize) -> bool {
+    let mut iter = seq.iter();
+    if iter.next() != Some(&']') {
+        return false;
     }
-    true
+
+    if iter.by_ref().take(eq_count).any(|c| c != &'=') {
+        return false;
+    }
+
+    iter.next() == Some(&']')
+}
+
+fn parse_lua_hex_float(s: &str) -> f64 {
+    let parts: Vec<&str> = s.split(['p', 'P']).collect();
+    let mantissa_part = parts[0];
+
+    let mut val: f64 = 0.0;
+    if let Some(dot_pos) = mantissa_part.find('.') {
+        let int_str = &mantissa_part[..dot_pos];
+        let frac_str = &mantissa_part[dot_pos + 1..];
+
+        val += i64::from_str_radix(if int_str.is_empty() { "0" } else { int_str }, 16).unwrap_or(0)
+            as f64;
+        for (i, c) in frac_str.chars().enumerate() {
+            if let Some(digit) = c.to_digit(16) {
+                val += (digit as f64) / 16.0_f64.powi(i as i32 + 1);
+            }
+        }
+    } else {
+        val = i64::from_str_radix(mantissa_part, 16).unwrap_or(0) as f64;
+    }
+
+    if parts.len() > 1 {
+        let exp: i32 = parts[1].parse().unwrap_or(0);
+        val * 2.0_f64.powi(exp)
+    } else {
+        val
+    }
 }
 
 mod tests {

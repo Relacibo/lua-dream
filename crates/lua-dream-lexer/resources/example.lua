@@ -11,6 +11,7 @@
 -- 1. Variablen mit Attributen (Lua 5.4 Update)
 local user_name <const> = "Gemini" 
 local pi_value = 3.1415e0     -- Wissenschaftliche Notation hinzugefügt
+local omit = .32
 local hex_pi = 0x1.91eb851eb851fp+1 -- Hexadezimaler Float (sehr komplex!)
 local is_active = true
 local nothing = nil
@@ -22,7 +23,7 @@ local logic = 10 == 20 or 5 ~= 3 and not false
 -- String Concatenation and Length
 local greeting = "Hello " .. 'World'
 local size = #"Length Operator"
-
+?
 -- Tables (The heart of Lua)
 local config = {
   key = "value",

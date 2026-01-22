@@ -1,7 +1,5 @@
 // TODO:
-//   - Hex float/int parsing
-//   - = signs between [[ in multiline comments and strings -> [===[String]===]
-//   - <close> and <const> attributes in local assignments -> local a <const> = ...
+//   - escape sequences in strings
 #[derive(Clone, Debug)]
 pub enum TokenKind {
     Identifier(String),
