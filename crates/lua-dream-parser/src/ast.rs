@@ -10,12 +10,13 @@ pub enum ControlStatement {
     Break,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, strum::EnumDiscriminants)]
 pub enum Expression {
     Double(f64),
     Integer(i64),
     String(String),
     Boolean(bool),
+    Varargs,
     UnaryOp {
         op: UnaryOp,
         val: Box<Expression>,
@@ -71,7 +72,13 @@ pub enum Statement {
         until: Expression,
     },
     Label(String),
-    Expression(Expression),
+    Goto(String),
+    Function {
+        name: String,
+        args: Vec<Expression>,
+        has_varargs: bool,
+        block: Block,
+    },
 }
 
 #[derive(Clone, Debug, strum::EnumString)]
