@@ -37,10 +37,6 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         }
     }
 
-    fn cursor(&self) -> &Cursor {
-        &self.cursor
-    }
-
     fn peek(&mut self, num: usize) -> std::io::Result<&[char]> {
         let Self {
             chars, peek_buf, ..
@@ -144,7 +140,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
             if !f(c) {
                 return Ok(Some(*c));
             }
-            let Ok(Some(c)) = self.next() else {
+            let Ok(Some(_)) = self.next() else {
                 unreachable!()
             };
         }
@@ -577,6 +573,7 @@ fn parse_lua_hex_float(s: &str) -> f64 {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use std::{fs::File, io::BufReader, path::Path};
 

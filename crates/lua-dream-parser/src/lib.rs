@@ -5,12 +5,12 @@ use crate::ast::Block;
 
 #[derive(Clone, Debug)]
 pub struct Parser<'a> {
-    tokens: &'a [Token],
+    _tokens: &'a [Token],
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Self {
-        Self { tokens }
+        Self { _tokens: tokens }
     }
 
     pub fn parse(&mut self) -> Block {
