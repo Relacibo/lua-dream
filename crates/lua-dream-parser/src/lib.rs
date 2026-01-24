@@ -212,17 +212,12 @@ impl<'a> Parser<'a> {
                 StatementResult::Statement(Statement::Goto(name.clone()))
             }
             TokenKind::KeywordFor => {
+                // TODO: generic loops
                 let from = self.expect_expression()?;
                 self.expect_token_discriminant(TokenKindDiscriminants::Comma)?;
                 let to = self.expect_expression()?;
-                let increment = if self
-                    .next_token_if_discriminant(TokenKindDiscriminants::Comma)
-                    .is_some()
-                {
-                    Some(self.expect_expression()?)
-                } else {
-                    None
-                };
+                self.expect_token_discriminant(TokenKindDiscriminants::Comma)?;
+                let increment = self.expect_expression()?;
                 self.expect_token_discriminant(TokenKindDiscriminants::KeywordDo)?;
                 let do_block = self.parse_block()?;
                 StatementResult::Statement(Statement::For {

@@ -60,7 +60,7 @@ pub enum Statement {
     For {
         from: Expression,
         to: Expression,
-        increment: Option<Expression>,
+        increment: Expression,
         do_block: Block,
     },
     While {
