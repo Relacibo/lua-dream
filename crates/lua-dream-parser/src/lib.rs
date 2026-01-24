@@ -1,11 +1,11 @@
 pub mod ast;
 pub mod error;
-use std::{ops::Not, str::FromStr};
+use std::str::FromStr;
 
 use lua_dream_lexer::token::{Token, TokenKind, TokenKindDiscriminants};
 
 use crate::{
-    ast::{Attribute, Block, ControlStatement, Expression, Statement},
+    ast::{Attribute, Block, ControlStatement, ElseBranch, Expression, Statement},
     error::Error,
 };
 
@@ -13,6 +13,7 @@ use crate::{
 pub struct Parser<'a> {
     tokens: &'a [Token],
     next_token_index: usize,
+    current_depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -20,22 +21,23 @@ impl<'a> Parser<'a> {
         Self {
             tokens,
             next_token_index: 0,
+            current_depth: 0,
         }
     }
 
-    pub fn next_token(&mut self) -> Result<&Token, Error> {
+    pub fn next_token(&mut self) -> &Token {
         let res = self
             .tokens
             .get(self.next_token_index)
-            .ok_or(Error::UnexpectedEof)?;
+            .expect("Unexpected end of file");
         self.next_token_index += 1;
-        Ok(res)
+        res
     }
 
-    pub fn peek_token(&mut self) -> Result<&Token, Error> {
+    pub fn peek_token(&mut self) -> &Token {
         self.tokens
             .get(self.next_token_index)
-            .ok_or(Error::UnexpectedEof)
+            .expect("Unexpected end of file")
     }
 
     pub fn skip_token(&mut self) {
@@ -46,7 +48,7 @@ impl<'a> Parser<'a> {
         &mut self,
         token_discriminant: TokenKindDiscriminants,
     ) -> Result<&Token, Error> {
-        let token = self.next_token()?;
+        let token = self.next_token();
         if token_discriminant == TokenKindDiscriminants::from(&token.kind) {
             Ok(token)
         } else {
@@ -55,13 +57,10 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_block(&mut self) -> Result<Block, Error> {
+        self.current_depth += 1;
         let mut statements = Vec::new();
         loop {
-            let stmt = match self.parse_statement() {
-                Ok(stmt) => stmt,
-                Err(Error::Eof) => break,
-                Err(err) => return Err(err),
-            };
+            let stmt = self.parse_statement()?;
             match stmt {
                 StatementResult::Statement(statement) => {
                     statements.push(statement);
@@ -69,22 +68,34 @@ impl<'a> Parser<'a> {
                 StatementResult::ControlStatement(_control_statement) => {
                     todo!("Parse to end of block and return.")
                 }
+                StatementResult::End => break,
+                StatementResult::Eof if self.current_depth == 1 => break,
+                StatementResult::Eof => {
+                    return Err(Error::UnexpectedEof(self.next_token().clone()))
+                }
             }
         }
+        self.current_depth -= 1;
         Ok(Block {
             statements,
             control_statement: None,
         })
     }
 
-    pub fn parse_statement(&mut self) -> Result<StatementResult, Error> {
-        let token = self.next_token()?;
+    fn parse_statement(&mut self) -> Result<StatementResult, Error> {
+        let token = self.next_token();
 
-        let Token { kind, line, column } = token;
+        let Token {
+            kind: statement_kind,
+            line,
+            column,
+        } = token;
 
-        let res = match kind {
-            TokenKind::Eof => return Err(Error::Eof),
-            TokenKind::KeywordLocal => {
+        let res = match statement_kind {
+            TokenKind::Eof => return Ok(StatementResult::Eof),
+            TokenKind::KeywordEnd => return Ok(StatementResult::End),
+            TokenKind::KeywordLocal | TokenKind::KeywordGlobal => {
+                let statement_kind_discriminant = TokenKindDiscriminants::from(statement_kind);
                 let TokenKind::Identifier(name) = self
                     .expect_token_discriminant(TokenKindDiscriminants::Identifier)?
                     .kind
@@ -93,45 +104,106 @@ impl<'a> Parser<'a> {
                     unreachable!();
                 };
 
-                let token = self.next_token()?;
-                let attribute = match token.kind {
-                    TokenKind::Lt => {
-                        let TokenKind::Identifier(attr) = self
-                            .expect_token_discriminant(TokenKindDiscriminants::Identifier)?
-                            .kind
-                            .clone()
-                        else {
+                let token = self.peek_token();
+                let attribute =
+                    if TokenKindDiscriminants::from(&token.kind) == TokenKindDiscriminants::Lt {
+                        self.next_token();
+                        let iden_token =
+                            self.expect_token_discriminant(TokenKindDiscriminants::Identifier)?;
+                        let TokenKind::Identifier(attr) = iden_token.kind.clone() else {
                             unreachable!();
                         };
-                        self.expect_token_discriminant(TokenKindDiscriminants::Gt)?;
-                        self.expect_token_discriminant(TokenKindDiscriminants::Assign)?;
                         let attr = Attribute::from_str(&attr)
-                            .map_err(|_| Error::UnexpectedAttribute(attr))?;
+                            .map_err(|_| Error::UnexpectedAttribute(iden_token.clone()))?;
+                        self.expect_token_discriminant(TokenKindDiscriminants::Gt)?;
                         Some(attr)
-                    }
-                    TokenKind::Assign => None,
-                    _ => return Err(Error::UnexpectedToken(token.clone())),
+                    } else {
+                        None
+                    };
+
+                let token = self.peek_token();
+                let assign = if TokenKindDiscriminants::from(&token.kind)
+                    == TokenKindDiscriminants::Assign
+                {
+                    self.next_token();
+                    Some(
+                        self.parse_expression()?
+                            .ok_or_else(|| Error::ExpectedExpression(self.next_token().clone()))?,
+                    )
+                } else {
+                    None
                 };
 
-                let expression = self.parse_expression()?;
+                let stmt = if statement_kind_discriminant == TokenKindDiscriminants::KeywordLocal {
+                    Statement::DeclareLocal {
+                        name,
+                        assign,
+                        attribute,
+                    }
+                } else {
+                    Statement::DeclareGlobal {
+                        name,
+                        assign,
+                        attribute,
+                    }
+                };
+                StatementResult::Statement(stmt)
+            }
+            TokenKind::KeywordIf => {
+                let condition = self
+                    .parse_expression()?
+                    .ok_or_else(|| Error::ExpectedExpression(self.next_token().clone()))?;
+                self.expect_token_discriminant(TokenKindDiscriminants::KeywordThen)?;
+                let then_block = self.parse_block()?;
 
-                StatementResult::Statement(Statement::AssignLocal {
-                    name,
-                    expression,
-                    attribute,
+                let else_branch = self.parse_else_branch()?;
+                StatementResult::Statement(Statement::If {
+                    condition,
+                    then_block,
+                    else_branch,
                 })
             }
+            TokenKind::KeywordReturn => {
+                let res = self.parse_expression()?;
+                StatementResult::ControlStatement(ControlStatement::Return(res))
+            }
+            TokenKind::KeywordWhile => {
+                todo!(r#"Not yet supported: "KeywordWhile" at {line}:{column}"#)
+            }
+            TokenKind::KeywordBreak => StatementResult::ControlStatement(ControlStatement::Break),
+            TokenKind::KeywordRepeat => {
+                todo!(r#"Not yet supported: "KeywordRepeat" at {line}:{column}"#)
+            }
+            TokenKind::KeywordGoto => {
+                todo!(r#"Not yet supported: "KeywordGoto" at {line}:{column}"#)
+            }
+            TokenKind::KeywordFor => {
+                todo!(r#"Not yet supported: "KeywordFor" at {line}:{column}"#)
+            }
+            TokenKind::DoubleColon => {
+                todo!(r#"Not yet supported: "DoubleColon" at {line}:{column}"#)
+            }
+            TokenKind::KeywordFunction => {
+                todo!(r#"Not yet supported: "KeywordFunction" at {line}:{column}"#)
+            }
             _ => unimplemented!(
-                r#"Token not supported in this position: "{kind:?}" at {line}:{column}. \nExpecting Statement"#
+                r#"Token not supported in this position: "{statement_kind:?}" at {line}:{column}. \nExpecting Statement"#
             ),
         };
         dbg!(&res);
         Ok(res)
     }
 
-    pub fn parse_expression(&mut self) -> Result<Expression, Error> {
+    fn parse_expression(&mut self) -> Result<Option<Expression>, Error> {
+        self.parse_expression_helper(None)
+    }
+
+    fn parse_expression_helper(
+        &mut self,
+        acc: Option<Expression>,
+    ) -> Result<Option<Expression>, Error> {
         loop {
-            let token = self.next_token()?;
+            let token = self.peek_token();
             let Token { kind, line, column } = token;
             match kind {
                 TokenKind::Identifier(_) => {
@@ -151,9 +223,6 @@ impl<'a> Parser<'a> {
                 }
                 TokenKind::LiteralNil => {
                     todo!(r#"Not yet supported: "LiteralNil " at {line}:{column}"#)
-                }
-                TokenKind::Assign => {
-                    todo!(r#"Not yet supported: "Assign"" at {line}:{column}"#)
                 }
                 TokenKind::Plus => {
                     todo!(r#"Not yet supported: "Plus" at {line}:{column}"#)
@@ -236,9 +305,6 @@ impl<'a> Parser<'a> {
                 TokenKind::Colon => {
                     todo!(r#"Not yet supported: "Colon" at {line}:{column}"#)
                 }
-                TokenKind::DoubleColon => {
-                    todo!(r#"Not yet supported: "DoubleColon" at {line}:{column}"#)
-                }
                 TokenKind::ParenOpen => {
                     todo!(r#"Not yet supported: "ParenOpen" at {line}:{column}"#)
                 }
@@ -257,54 +323,36 @@ impl<'a> Parser<'a> {
                 TokenKind::CurlyBracesClose => {
                     todo!(r#"Not yet supported: "CurlyBracesClose" at {line}:{column}"#)
                 }
-                TokenKind::KeywordFunction => {
-                    todo!(r#"Not yet supported: "KeywordFunction" at {line}:{column}"#)
-                }
-                TokenKind::KeywordIf => {
-                    todo!(r#"Not yet supported: "KeywordIf" at {line}:{column}"#)
-                }
-                TokenKind::KeywordThen => {
-                    todo!(r#"Not yet supported: "KeywordThen" at {line}:{column}"#)
-                }
-                TokenKind::KeywordElseIf => {
-                    todo!(r#"Not yet supported: "KeywordElseIf" at {line}:{column}"#)
-                }
-                TokenKind::KeywordElse => {
-                    todo!(r#"Not yet supported: "KeywordElse" at {line}:{column}"#)
-                }
-                TokenKind::KeywordEnd => {
-                    todo!(r#"Not yet supported: "KeywordEnd" at {line}:{column}"#)
-                }
-                TokenKind::KeywordReturn => {
-                    todo!(r#"Not yet supported: "KeywordReturn" at {line}:{column}"#)
-                }
-                TokenKind::KeywordWhile => {
-                    todo!(r#"Not yet supported: "KeywordWhile" at {line}:{column}"#)
-                }
-                TokenKind::KeywordDo => {
-                    todo!(r#"Not yet supported: "KeywordDo" at {line}:{column}"#)
-                }
-                TokenKind::KeywordBreak => {
-                    todo!(r#"Not yet supported: "KeywordBreak" at {line}:{column}"#)
-                }
-                TokenKind::KeywordRepeat => {
-                    todo!(r#"Not yet supported: "KeywordRepeat" at {line}:{column}"#)
-                }
-                TokenKind::KeywordUntil => {
-                    todo!(r#"Not yet supported: "KeywordUntil" at {line}:{column}"#)
-                }
-                TokenKind::KeywordGoto => {
-                    todo!(r#"Not yet supported: "KeywordGoto" at {line}:{column}"#)
-                }
-                TokenKind::KeywordFor => {
-                    todo!(r#"Not yet supported: "KeywordFor" at {line}:{column}"#)
-                }
-                TokenKind::Eof => return Err(Error::Eof),
-                _ => unimplemented!(
-                    r#"Token not supported in this position: "{kind:?}" at {line}:{column}. \nExpecting Statement"#
-                ),
+                _ => return Ok(acc),
             }
         }
+    }
+
+    fn parse_else_branch(&mut self) -> Result<Option<ElseBranch>, Error> {
+        let token = self.peek_token();
+        let else_branch = match TokenKindDiscriminants::from(&token.kind) {
+            TokenKindDiscriminants::KeywordElseIf => {
+                self.next_token();
+                let condition = self
+                    .parse_expression()?
+                    .ok_or_else(|| Error::ExpectedExpression(self.next_token().clone()))?;
+                self.expect_token_discriminant(TokenKindDiscriminants::KeywordThen)?;
+                let then_block = self.parse_block()?;
+                let else_branch = self.parse_else_branch()?;
+                ElseBranch::ElseIf {
+                    condition,
+                    then_block,
+                    else_branch: else_branch.map(Box::new),
+                }
+            }
+            TokenKindDiscriminants::KeywordElse => {
+                self.next_token();
+                let block = self.parse_block()?;
+                ElseBranch::Else(block)
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some(else_branch))
     }
 }
 
@@ -312,4 +360,6 @@ impl<'a> Parser<'a> {
 enum StatementResult {
     Statement(Statement),
     ControlStatement(ControlStatement),
+    End,
+    Eof,
 }

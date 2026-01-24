@@ -37,15 +37,38 @@ pub enum FnArg {
 
 #[derive(Clone, Debug)]
 pub enum Statement {
-    AssignLocal {
+    DeclareLocal {
         name: String,
-        expression: Expression,
+        assign: Option<Expression>,
         attribute: Option<Attribute>,
     },
-    AssignGlobal {
+    DeclareGlobal {
         name: String,
-        expression: Expression,
+        assign: Option<Expression>,
         attribute: Option<Attribute>,
+    },
+    Assign {
+        name: String,
+        expression: Option<Expression>,
+    },
+    If {
+        condition: Expression,
+        then_block: Block,
+        else_branch: Option<ElseBranch>,
+    },
+    For {
+        from: Expression,
+        to: Expression,
+        increment: Option<Expression>,
+        do_block: Block,
+    },
+    While {
+        condition: Expression,
+        do_block: Block,
+    },
+    Repeat {
+        repeat_block: Block,
+        until: Expression,
     },
     Label(String),
     Expression(Expression),
@@ -95,4 +118,14 @@ pub enum UnaryOp {
     Not,
     Len,
     Neg,
+}
+
+#[derive(Clone, Debug)]
+pub enum ElseBranch {
+    Else(Block),
+    ElseIf {
+        condition: Expression,
+        then_block: Block,
+        else_branch: Option<Box<ElseBranch>>,
+    },
 }

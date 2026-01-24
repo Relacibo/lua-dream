@@ -44,6 +44,7 @@ pub enum TokenKind {
     CurlyBracesOpen,
     CurlyBracesClose,
     KeywordLocal,
+    KeywordGlobal,
     KeywordFunction,
     KeywordIf,
     KeywordThen,

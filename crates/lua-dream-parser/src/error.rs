@@ -3,12 +3,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Unexpected EOF")]
-    UnexpectedEof,
-    #[error("Expected EOF")]
-    Eof,
+    #[error("Unexpected EOF: {:?}", .0)]
+    UnexpectedEof(Token),
     #[error("Unexpected token: {:?}", .0)]
     UnexpectedToken(Token),
     #[error("Unexpected attribute: {:?}", .0)]
-    UnexpectedAttribute(String),
+    UnexpectedAttribute(Token),
+    #[error("Expected expression. Got: {:?}", .0)]
+    ExpectedExpression(Token),
 }

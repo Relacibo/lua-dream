@@ -481,6 +481,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                         "end" => TokenKind::KeywordEnd,
                         "function" => TokenKind::KeywordFunction,
                         "local" => TokenKind::KeywordLocal,
+                        "global" => TokenKind::KeywordGlobal,
                         "return" => TokenKind::KeywordReturn,
                         "and" => TokenKind::And,
                         "or" => TokenKind::Or,
