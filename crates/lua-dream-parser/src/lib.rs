@@ -212,20 +212,42 @@ impl<'a> Parser<'a> {
                 StatementResult::Statement(Statement::Goto(name.clone()))
             }
             TokenKind::KeywordFor => {
-                // TODO: generic loops
-                let from = self.expect_expression()?;
-                self.expect_token_discriminant(TokenKindDiscriminants::Comma)?;
-                let to = self.expect_expression()?;
-                self.expect_token_discriminant(TokenKindDiscriminants::Comma)?;
-                let increment = self.expect_expression()?;
-                self.expect_token_discriminant(TokenKindDiscriminants::KeywordDo)?;
-                let do_block = self.parse_block()?;
-                StatementResult::Statement(Statement::For {
-                    from,
-                    to,
-                    increment,
-                    do_block,
-                })
+                let TokenKind::Identifier(variable_name) = self
+                    .expect_token_discriminant(TokenKindDiscriminants::Identifier)?
+                    .kind
+                    .clone()
+                else {
+                    unreachable!();
+                };
+
+                let token = self.next_token();
+                match TokenKindDiscriminants::from(&token.kind) {
+                    TokenKindDiscriminants::Assign => {
+                        let from = self.expect_expression()?;
+                        self.expect_token_discriminant(TokenKindDiscriminants::Comma)?;
+                        let to = self.expect_expression()?;
+                        self.expect_token_discriminant(TokenKindDiscriminants::Comma)?;
+                        let increment = self.expect_expression()?;
+                        self.expect_token_discriminant(TokenKindDiscriminants::KeywordDo)?;
+                        let do_block = self.parse_block()?;
+                        StatementResult::Statement(Statement::For {
+                            variable_name,
+                            from,
+                            to,
+                            increment,
+                            do_block,
+                        })
+                    }
+                    TokenKindDiscriminants::Comma | TokenKindDiscriminants::KeywordIn => {
+                        todo!("Generic for loop");
+                        // StatementResult::Statement(Statement::ForGeneric {
+                        //     variable_names,
+                        //     iterators,
+                        //     block,
+                        // })
+                    }
+                    _ => return Err(Error::UnexpectedToken(token.clone())),
+                }
             }
             TokenKind::DoubleColon => {
                 let TokenKind::Identifier(name) = self

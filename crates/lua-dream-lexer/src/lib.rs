@@ -495,6 +495,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                         "until" => TokenKind::KeywordUntil,
                         "goto" => TokenKind::KeywordGoto,
                         "for" => TokenKind::KeywordFor,
+                        "in" => TokenKind::KeywordIn,
                         "nil" => TokenKind::LiteralNil,
                         _ => {
                             let mut buf2 = String::new();

@@ -58,10 +58,16 @@ pub enum Statement {
         else_branch: Option<ElseBranch>,
     },
     For {
+        variable_name: String,
         from: Expression,
         to: Expression,
         increment: Expression,
         do_block: Block,
+    },
+    ForGeneric {
+        variable_names: Vec<String>,
+        iterators: Vec<Expression>,
+        block: Block,
     },
     While {
         condition: Expression,

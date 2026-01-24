@@ -59,6 +59,7 @@ pub enum TokenKind {
     KeywordUntil,
     KeywordGoto,
     KeywordFor,
+    KeywordIn,
     Eof,
 }
 
