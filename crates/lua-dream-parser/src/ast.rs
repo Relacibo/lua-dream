@@ -1,29 +1,29 @@
 #[derive(Clone, Debug)]
 pub struct Block {
-    pub stats: Vec<Stmt>,
-    pub ctrl_stmt: Option<CtrlStmt>,
+    pub statements: Vec<Statement>,
+    pub control_statement: Option<ControlStatement>,
 }
 
 #[derive(Clone, Debug)]
-pub enum CtrlStmt {
-    Return(Option<Expr>),
+pub enum ControlStatement {
+    Return(Option<Expression>),
     Break,
 }
 
 #[derive(Clone, Debug)]
-pub enum Expr {
+pub enum Expression {
     Double(f64),
     Integer(i64),
     String(String),
     Boolean(bool),
     UnaryOp {
         op: UnaryOp,
-        val: Box<Expr>,
+        val: Box<Expression>,
     },
     BinaryOp {
         op: BinaryOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     Goto(String),
     Table(Vec<TableRow>),
@@ -36,31 +36,32 @@ pub enum FnArg {
 }
 
 #[derive(Clone, Debug)]
-pub enum Stmt {
+pub enum Statement {
     AssignLocal {
         name: String,
-        val: Expr,
-        attr: Option<Attr>,
+        expression: Expression,
+        attribute: Option<Attribute>,
     },
     AssignGlobal {
         name: String,
-        val: Expr,
-        attr: Option<Attr>,
+        expression: Expression,
+        attribute: Option<Attribute>,
     },
     Label(String),
-    Expr(Expr),
+    Expression(Expression),
 }
 
-#[derive(Clone, Debug)]
-pub enum Attr {
+#[derive(Clone, Debug, strum::EnumString)]
+#[strum(serialize_all = "snake_case")]
+pub enum Attribute {
     Const,
     Close,
 }
 
 #[derive(Clone, Debug)]
 pub struct TableRow {
-    pub key: Expr,
-    pub val: Expr,
+    pub key: Expression,
+    pub expr: Expression,
 }
 
 #[derive(Clone, Debug)]

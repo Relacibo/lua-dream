@@ -1,4 +1,6 @@
-#[derive(Clone, Debug)]
+use strum::EnumDiscriminants;
+
+#[derive(Clone, Debug, EnumDiscriminants)]
 pub enum TokenKind {
     Identifier(String),
     LiteralString(String),

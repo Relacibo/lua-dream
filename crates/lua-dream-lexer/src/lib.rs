@@ -5,7 +5,7 @@ pub mod token;
 use std::{io::BufRead, path::Path};
 
 use crate::{
-    error::LexerError,
+    error::Error,
     slicable_queue::SlicableQueue,
     token::{Token, TokenKind},
 };
@@ -186,7 +186,7 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
         Ok(())
     }
 
-    pub fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
+    pub fn tokenize(&mut self) -> Result<Vec<Token>, Error> {
         let mut tokens = Vec::new();
         let mut buf = String::new();
 

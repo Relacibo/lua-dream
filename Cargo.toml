@@ -9,9 +9,9 @@ members = ["crates/*"]
 [workspace.dependencies]
 lua-dream-lexer = { path = "crates/lua-dream-lexer" }
 lua-dream-parser = { path = "crates/lua-dream-parser" }
+thiserror = "2.0.18"
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
-itertools = "0.14.0"
 lua-dream-lexer = { workspace = true }
 lua-dream-parser = { workspace = true }

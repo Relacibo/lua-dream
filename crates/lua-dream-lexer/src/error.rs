@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum LexerError {
+pub enum Error {
     #[error("Io Error")]
     Io(#[from] std::io::Error),
 }

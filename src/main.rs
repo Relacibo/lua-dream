@@ -34,7 +34,8 @@ fn main() -> io::Result<()> {
         .tokenize()
         .unwrap();
 
-    dbg!(&tokens);
-    Parser::new(&tokens).parse();
+    // dbg!(&tokens);
+    let ast = Parser::new(&tokens).parse_block().unwrap();
+    dbg!(&ast);
     Ok(())
 }
