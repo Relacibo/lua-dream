@@ -6,8 +6,8 @@ use lua_dream_lexer::token::{Token, TokenKind, TokenKindDiscriminants};
 
 use crate::{
     ast::{
-        Attribute, Block, ControlStatement, ElseBranch, Expression, ExpressionDiscriminants,
-        Statement,
+        Attribute, Block, Branch, ControlStatement, ElseBranch, Expression,
+        ExpressionDiscriminants, Statement,
     },
     error::Error,
 };
@@ -161,6 +161,7 @@ impl<'a> Parser<'a> {
                 StatementResult::Statement(stmt)
             }
             TokenKind::Identifier(name) => {
+                // TODO: parse function call statements
                 let name = name.clone();
                 self.expect_token_discriminant(TokenKindDiscriminants::Assign)?;
                 let expression = self.parse_expression()?;
@@ -171,12 +172,12 @@ impl<'a> Parser<'a> {
                 self.expect_token_discriminant(TokenKindDiscriminants::KeywordThen)?;
                 let then_block = self.parse_block()?;
 
-                let else_branch = self.parse_else_branch()?;
-                StatementResult::Statement(Statement::If {
+                let else_branch = self.parse_else_branch()?.map(Box::new);
+                StatementResult::Statement(Statement::If(Branch {
                     condition,
                     then_block,
                     else_branch,
-                })
+                }))
             }
             TokenKind::KeywordReturn => {
                 let res = self.parse_expression()?;
@@ -238,13 +239,48 @@ impl<'a> Parser<'a> {
                             do_block,
                         })
                     }
-                    TokenKindDiscriminants::Comma | TokenKindDiscriminants::KeywordIn => {
-                        todo!("Generic for loop");
-                        // StatementResult::Statement(Statement::ForGeneric {
-                        //     variable_names,
-                        //     iterators,
-                        //     block,
-                        // })
+                    token_kind @ (TokenKindDiscriminants::Comma
+                    | TokenKindDiscriminants::KeywordIn) => {
+                        let mut variable_names = vec![variable_name];
+                        if token_kind == TokenKindDiscriminants::Comma {
+                            loop {
+                                let TokenKind::Identifier(variable_name) = self
+                                    .expect_token_discriminant(TokenKindDiscriminants::Identifier)?
+                                    .kind
+                                    .clone()
+                                else {
+                                    unreachable!();
+                                };
+                                variable_names.push(variable_name);
+                                let token = self.next_token();
+                                match TokenKindDiscriminants::from(&token.kind) {
+                                    TokenKindDiscriminants::Comma => {}
+                                    TokenKindDiscriminants::KeywordIn => {
+                                        break;
+                                    }
+                                    _ => return Err(Error::UnexpectedToken(token.clone())),
+                                }
+                            }
+                        }
+                        let mut iterators = Vec::new();
+                        loop {
+                            let iterator = self.expect_expression()?;
+                            iterators.push(iterator);
+                            let token = self.next_token();
+                            match TokenKindDiscriminants::from(&token.kind) {
+                                TokenKindDiscriminants::Comma => {}
+                                TokenKindDiscriminants::KeywordDo => {
+                                    break;
+                                }
+                                _ => return Err(Error::UnexpectedToken(token.clone())),
+                            }
+                        }
+                        let do_block = self.parse_block()?;
+                        StatementResult::Statement(Statement::ForGeneric {
+                            variable_names,
+                            iterators,
+                            do_block,
+                        })
                     }
                     _ => return Err(Error::UnexpectedToken(token.clone())),
                 }
@@ -459,11 +495,11 @@ impl<'a> Parser<'a> {
                 self.expect_token_discriminant(TokenKindDiscriminants::KeywordThen)?;
                 let then_block = self.parse_block()?;
                 let else_branch = self.parse_else_branch()?;
-                ElseBranch::ElseIf {
+                ElseBranch::ElseIf(Branch {
                     condition,
                     then_block,
                     else_branch: else_branch.map(Box::new),
-                }
+                })
             }
             TokenKindDiscriminants::KeywordElse => {
                 self.next_token();

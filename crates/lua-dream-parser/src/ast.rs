@@ -16,6 +16,7 @@ pub enum Expression {
     Integer(i64),
     String(String),
     Boolean(bool),
+    Nil,
     Varargs,
     UnaryOp {
         op: UnaryOp,
@@ -26,8 +27,8 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
-    Goto(String),
     Table(Vec<TableRow>),
+    Call(FunctionCall),
 }
 
 #[derive(Clone, Debug)]
@@ -52,11 +53,7 @@ pub enum Statement {
         name: String,
         expression: Option<Expression>,
     },
-    If {
-        condition: Expression,
-        then_block: Block,
-        else_branch: Option<ElseBranch>,
-    },
+    If(Branch),
     For {
         variable_name: String,
         from: Expression,
@@ -67,7 +64,7 @@ pub enum Statement {
     ForGeneric {
         variable_names: Vec<String>,
         iterators: Vec<Expression>,
-        block: Block,
+        do_block: Block,
     },
     While {
         condition: Expression,
@@ -85,6 +82,7 @@ pub enum Statement {
         has_varargs: bool,
         block: Block,
     },
+    Call(FunctionCall),
 }
 
 #[derive(Clone, Debug, strum::EnumString)]
@@ -134,11 +132,20 @@ pub enum UnaryOp {
 }
 
 #[derive(Clone, Debug)]
+pub struct Branch {
+    pub condition: Expression,
+    pub then_block: Block,
+    pub else_branch: Option<Box<ElseBranch>>,
+}
+
+#[derive(Clone, Debug)]
 pub enum ElseBranch {
     Else(Block),
-    ElseIf {
-        condition: Expression,
-        then_block: Block,
-        else_branch: Option<Box<ElseBranch>>,
-    },
+    ElseIf(Branch),
+}
+
+#[derive(Clone, Debug)]
+pub struct FunctionCall {
+    pub prefix: Box<Expression>,
+    pub arguments: Vec<Expression>,
 }

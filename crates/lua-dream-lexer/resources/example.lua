@@ -52,6 +52,12 @@ for i = 1, 10, 1 do
   if i == 5 then break end
 end
 
+local gaga = {1, 2, 4}
+local gagaga = {"test", "hier", "bin", "ich"}
+for i, g in gaga, gagaga do
+  if i == 5 then break end
+end
+
 repeat
   count = count - 1
 until count <= 0 
