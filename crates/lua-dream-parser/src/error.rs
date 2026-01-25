@@ -11,4 +11,6 @@ pub enum Error {
     UnexpectedAttribute(Token),
     #[error("Expected expression. Got: {:?}", .0)]
     ExpectedExpression(Token),
+    #[error("Expected Binary Operation. Got: {:?}", .0)]
+    ExpectedBinaryOperation(Token),
 }

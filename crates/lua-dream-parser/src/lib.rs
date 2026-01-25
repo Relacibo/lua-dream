@@ -6,7 +6,7 @@ use lua_dream_lexer::token::{Token, TokenKind, TokenKindDiscriminants};
 
 use crate::{
     ast::{
-        Attribute, Block, Branch, ControlStatement, ElseBranch, Expression,
+        Attribute, BinaryOp, Block, Branch, ControlStatement, ElseBranch, Expression,
         ExpressionDiscriminants, Statement,
     },
     error::Error,
@@ -347,143 +347,67 @@ impl<'a> Parser<'a> {
         Ok(res)
     }
 
-    fn expect_expression(&mut self) -> Result<Expression, Error> {
-        self.parse_expression()?
-            .ok_or_else(|| Error::ExpectedExpression(self.next_token().clone()))
+    fn get_precedence(op: &TokenKind) -> Option<u8> {
+        let res = match op {
+            TokenKind::Plus | TokenKind::Minus => 1,
+            TokenKind::Mul | TokenKind::Div => 2,
+            TokenKind::Pow => 3,
+            _ => return None,
+        };
+        Some(res)
     }
 
-    fn parse_expression(&mut self) -> Result<Option<Expression>, Error> {
-        self.parse_expression_helper(None)
+    fn parse_expression(&mut self) -> Result<Expression, Error> {
+        self.parse_expression_helper(0)
     }
 
-    fn parse_expression_helper(
-        &mut self,
-        acc: Option<Expression>,
-    ) -> Result<Option<Expression>, Error> {
-        loop {
-            let token = self.peek_token();
-            let Token { kind, line, column } = token;
-            match kind {
-                TokenKind::Identifier(_) => {
-                    todo!(r#"Not yet supported: "Identifier" at {line}:{column}"#)
-                }
-                TokenKind::LiteralString(_) => {
-                    todo!(r#"Not yet supported: "LiteralString" at {line}:{column}"#)
-                }
-                TokenKind::LiteralFloat(_) => {
-                    todo!(r#"Not yet supported: "LiteralFloat" at {line}:{column}"#)
-                }
-                TokenKind::LiteralInt(_) => {
-                    todo!(r#"Not yet supported: "LiteralInt" at {line}:{column}"#)
-                }
-                TokenKind::LiteralBoolean(_) => {
-                    todo!(r#"Not yet supported: "LiteralBoolean" at {line}:{column}"#)
-                }
-                TokenKind::LiteralNil => {
-                    todo!(r#"Not yet supported: "LiteralNil " at {line}:{column}"#)
-                }
-                TokenKind::Plus => {
-                    todo!(r#"Not yet supported: "Plus" at {line}:{column}"#)
-                }
-                TokenKind::Minus => {
-                    todo!(r#"Not yet supported: "Minus" at {line}:{column}"#)
-                }
-                TokenKind::Mul => {
-                    todo!(r#"Not yet supported: "Mul" at {line}:{column}"#)
-                }
-                TokenKind::Div => {
-                    todo!(r#"Not yet supported: "Div" at {line}:{column}"#)
-                }
-                TokenKind::FloorDiv => {
-                    todo!(r#"Not yet supported: "FloorDiv" at {line}:{column}"#)
-                }
-                TokenKind::Mod => {
-                    todo!(r#"Not yet supported: "Mod" at {line}:{column}"#)
-                }
-                TokenKind::Pow => {
-                    todo!(r#"Not yet supported: "Pow" at {line}:{column}"#)
-                }
-                TokenKind::Eq => {
-                    todo!(r#"Not yet supported: "Eq" at {line}:{column}"#)
-                }
-                TokenKind::Neq => {
-                    todo!(r#"Not yet supported: "Neq" at {line}:{column}"#)
-                }
-                TokenKind::Leq => {
-                    todo!(r#"Not yet supported: "Leq" at {line}:{column}"#)
-                }
-                TokenKind::Geq => {
-                    todo!(r#"Not yet supported: "Geq" at {line}:{column}"#)
-                }
-                TokenKind::Lt => {
-                    todo!(r#"Not yet supported: "Lt" at {line}:{column}"#)
-                }
-                TokenKind::Gt => {
-                    todo!(r#"Not yet supported: "Gt" at {line}:{column}"#)
-                }
-                TokenKind::And => {
-                    todo!(r#"Not yet supported: "And" at {line}:{column}"#)
-                }
-                TokenKind::Or => {
-                    todo!(r#"Not yet supported: "Or" at {line}:{column}"#)
-                }
-                TokenKind::Not => {
-                    todo!(r#"Not yet supported: "Not" at {line}:{column}"#)
-                }
-                TokenKind::Len => {
-                    todo!(r#"Not yet supported: "Len" at {line}:{column}"#)
-                }
-                TokenKind::Concat => {
-                    todo!(r#"Not yet supported: "Concat" at {line}:{column}"#)
-                }
-                TokenKind::BitAnd => {
-                    todo!(r#"Not yet supported: "BitAnd" at {line}:{column}"#)
-                }
-                TokenKind::BitOr => {
-                    todo!(r#"Not yet supported: "BitOr" at {line}:{column}"#)
-                }
-                TokenKind::BitXor => {
-                    todo!(r#"Not yet supported: "BitXor" at {line}:{column}"#)
-                }
-                TokenKind::Shl => {
-                    todo!(r#"Not yet supported: "Shl" at {line}:{column}"#)
-                }
-                TokenKind::Shr => {
-                    todo!(r#"Not yet supported: "Shr" at {line}:{column}"#)
-                }
-                TokenKind::Comma => {
-                    todo!(r#"Not yet supported: "Comma" at {line}:{column}"#)
-                }
-                TokenKind::Semicolon => {
-                    todo!(r#"Not yet supported: "Semicolon" at {line}:{column}"#)
-                }
-                TokenKind::Varargs => {
-                    todo!(r#"Not yet supported: "Varargs" at {line}:{column}"#)
-                }
-                TokenKind::Colon => {
-                    todo!(r#"Not yet supported: "Colon" at {line}:{column}"#)
-                }
-                TokenKind::ParenOpen => {
-                    todo!(r#"Not yet supported: "ParenOpen" at {line}:{column}"#)
-                }
-                TokenKind::ParenClose => {
-                    todo!(r#"Not yet supported: "ParenClose" at {line}:{column}"#)
-                }
-                TokenKind::BracketsOpen => {
-                    todo!(r#"Not yet supported: "BracketsOpen" at {line}:{column}"#)
-                }
-                TokenKind::BracketsClose => {
-                    todo!(r#"Not yet supported: "BracketsClose" at {line}:{column}"#)
-                }
-                TokenKind::CurlyBracesOpen => {
-                    todo!(r#"Not yet supported: "CurlyBracesOpen" at {line}:{column}"#)
-                }
-                TokenKind::CurlyBracesClose => {
-                    todo!(r#"Not yet supported: "CurlyBracesClose" at {line}:{column}"#)
-                }
-                _ => return Ok(acc),
-            }
+    fn parse_primary(&mut self) -> Result<Expression, Error> {
+        let token = self.peek_token();
+        match token.kind {
+            TokenKind::Identifier(_) => todo!(),
+            TokenKind::LiteralString(_) => todo!(),
+            TokenKind::LiteralFloat(_) => todo!(),
+            TokenKind::LiteralInt(_) => todo!(),
+            TokenKind::LiteralBoolean(_) => todo!(),
+            TokenKind::LiteralNil => todo!(),
+            TokenKind::Plus => todo!(),
+            TokenKind::Minus => todo!(),
+            TokenKind::Not => todo!(),
+            TokenKind::Len => todo!(),
+            TokenKind::BitXor => todo!(),
+            TokenKind::Varargs => todo!(),
+            TokenKind::ParenOpen => todo!(),
+            TokenKind::BracketsOpen => todo!(),
+            TokenKind::CurlyBracesOpen => todo!(),
+            _ => todo!("Not start of an expression"),
         }
+    }
+
+    fn parse_expression_helper(&mut self, min_precedence: u8) -> Result<Expression, Error> {
+        let mut left = self.parse_primary()?;
+
+        loop {
+            let op_token = self.peek_token();
+            let precedence = Self::get_precedence(&op_token.kind);
+
+            if precedence < Some(min_precedence) {
+                break;
+            }
+
+            let precedence = precedence.unwrap();
+
+            self.next_token();
+
+            let right = self.parse_expression_helper(precedence + 1)?;
+
+            left = Expression::BinaryOp {
+                left: Box::new(left),
+                op: BinaryOp::from(op_token.kind),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(left)
     }
 
     fn parse_else_branch(&mut self) -> Result<Option<ElseBranch>, Error> {
@@ -509,6 +433,37 @@ impl<'a> Parser<'a> {
             _ => return Ok(None),
         };
         Ok(Some(else_branch))
+    }
+
+    fn parse_op(&mut self) -> Result<BinaryOp, Error> {
+        let token = self.peek_token();
+        use BinaryOp::*;
+        let res = match TokenKindDiscriminants::from(&token.kind) {
+            TokenKindDiscriminants::Plus => todo!(),
+            TokenKindDiscriminants::Minus => todo!(),
+            TokenKindDiscriminants::Mul => todo!(),
+            TokenKindDiscriminants::Div => todo!(),
+            TokenKindDiscriminants::FloorDiv => todo!(),
+            TokenKindDiscriminants::Mod => todo!(),
+            TokenKindDiscriminants::Pow => todo!(),
+            TokenKindDiscriminants::Eq => todo!(),
+            TokenKindDiscriminants::Neq => todo!(),
+            TokenKindDiscriminants::Leq => todo!(),
+            TokenKindDiscriminants::Geq => todo!(),
+            TokenKindDiscriminants::Lt => todo!(),
+            TokenKindDiscriminants::Gt => todo!(),
+            TokenKindDiscriminants::And => todo!(),
+            TokenKindDiscriminants::Or => todo!(),
+            TokenKindDiscriminants::Concat => todo!(),
+            TokenKindDiscriminants::BitAnd => todo!(),
+            TokenKindDiscriminants::BitOr => todo!(),
+            TokenKindDiscriminants::BitXor => todo!(),
+            TokenKindDiscriminants::Shl => todo!(),
+            TokenKindDiscriminants::Shr => todo!(),
+            _ => return Err(Error::ExpectedBinaryOperation(token.clone())),
+        };
+        self.skip_token();
+        Ok(res)
     }
 }
 
