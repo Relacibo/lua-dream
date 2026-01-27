@@ -341,6 +341,10 @@ impl<'a> Parser<'a> {
                     block,
                 })
             }
+            TokenKind::Identifier(iden) => {
+                // self.parse_prefix_expression()
+                todo!()
+            }
             _ => unimplemented!(
                 r#"Token not supported in this position: "{statement_kind:?}" at {line}:{column}. \nExpecting Statement"#
             ),
