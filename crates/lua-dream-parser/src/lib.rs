@@ -357,11 +357,11 @@ impl<'a> Parser<'a> {
     fn parse_primary(&mut self) -> Result<Expression, Error> {
         let token = self.peek_token().clone();
         match token.kind {
-            TokenKind::LiteralInt(n) => {
+            TokenKind::LiteralInteger(n) => {
                 self.skip_token();
                 Ok(Expression::Integer(n))
             }
-            TokenKind::LiteralFloat(n) => {
+            TokenKind::LiteralDouble(n) => {
                 self.skip_token();
                 Ok(Expression::Double(n))
             }
