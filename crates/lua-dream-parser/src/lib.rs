@@ -163,11 +163,17 @@ impl<'a> Parser<'a> {
                 StatementResult::Statement(stmt)
             }
             TokenKind::Identifier(name) => {
-                // TODO: parse function call statements
                 let name = name.clone();
-                self.expect_token_discriminant(TokenKindDiscriminants::Assign)?;
-                let expression = self.parse_expression().ok();
-                StatementResult::Statement(Statement::Assign { name, expression })
+                if self
+                    .next_token_if_discriminant(TokenKindDiscriminants::Assign)
+                    .is_some()
+                {
+                    let expression = self.parse_expression().ok();
+                    StatementResult::Statement(Statement::Assign { name, expression })
+                } else {
+                    // self.parse_prefix_expression()
+                    todo!("parse function call statements")
+                }
             }
             TokenKind::KeywordIf => {
                 let condition = self.parse_expression()?;
@@ -340,10 +346,6 @@ impl<'a> Parser<'a> {
                     has_varargs,
                     block,
                 })
-            }
-            TokenKind::Identifier(iden) => {
-                // self.parse_prefix_expression()
-                todo!()
             }
             _ => unimplemented!(
                 r#"Token not supported in this position: "{statement_kind:?}" at {line}:{column}. \nExpecting Statement"#
