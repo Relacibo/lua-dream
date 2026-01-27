@@ -35,7 +35,7 @@ fn main() -> io::Result<()> {
         .unwrap();
 
     // dbg!(&tokens);
-    let ast = Parser::new(&tokens).parse_block().unwrap();
+    let ast = Parser::new(&tokens).parse_block();
     dbg!(&ast);
     Ok(())
 }

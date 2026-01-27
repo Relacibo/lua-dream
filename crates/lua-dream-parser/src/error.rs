@@ -11,4 +11,19 @@ pub enum Error {
     UnexpectedAttribute(Token),
     #[error("Expected expression. Got: {:?}", .0)]
     ExpectedExpression(Token),
+    #[error("Expected Binary Operation. Got: {:?}", .0)]
+    ExpectedBinaryOperation(Token),
+}
+
+impl Error {
+    pub fn into_token(self) -> Option<Token> {
+        let res = match self {
+            Error::UnexpectedEof(token) => token,
+            Error::UnexpectedToken(token) => token,
+            Error::UnexpectedAttribute(token) => token,
+            Error::ExpectedExpression(token) => token,
+            Error::ExpectedBinaryOperation(token) => token,
+        };
+        Some(res)
+    }
 }

@@ -1,3 +1,5 @@
+use lua_dream_lexer::token::TokenKindDiscriminants;
+
 #[derive(Clone, Debug)]
 pub struct Block {
     pub statements: Vec<Statement>,
@@ -104,7 +106,7 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
-    DivFloor,
+    FloorDiv,
     Mod,
     Pow,
     Eq,
@@ -123,12 +125,85 @@ pub enum BinaryOp {
     Shr,
 }
 
+impl BinaryOp {
+    pub fn get_precedence(&self) -> u8 {
+        use BinaryOp::*;
+        match self {
+            Or => 1,
+            And => 2,
+
+            Eq | Neq | Lt | Gt | Leq | Geq => 3,
+
+            BitOr | BitXor => 4,
+            BitAnd => 5,
+            Shl | Shr => 6,
+
+            Concat => 7,
+
+            Add | Sub => 8,
+
+            Mul | Div | FloorDiv | Mod => 9,
+
+            Pow => 11,
+        }
+    }
+
+    pub fn is_right_associative(&self) -> bool {
+        matches!(self, BinaryOp::Pow | BinaryOp::Concat)
+    }
+}
+impl TryFrom<TokenKindDiscriminants> for BinaryOp {
+    type Error = ();
+
+    fn try_from(value: TokenKindDiscriminants) -> Result<Self, Self::Error> {
+        use BinaryOp::*;
+        let res = match value {
+            TokenKindDiscriminants::Plus => Add,
+            TokenKindDiscriminants::Minus => Sub,
+            TokenKindDiscriminants::Mul => Mul,
+            TokenKindDiscriminants::Div => Div,
+            TokenKindDiscriminants::FloorDiv => FloorDiv,
+            TokenKindDiscriminants::Mod => Mod,
+            TokenKindDiscriminants::Pow => Pow,
+            TokenKindDiscriminants::Eq => Eq,
+            TokenKindDiscriminants::Neq => Neq,
+            TokenKindDiscriminants::Leq => Leq,
+            TokenKindDiscriminants::Geq => Geq,
+            TokenKindDiscriminants::Lt => Lt,
+            TokenKindDiscriminants::Gt => Gt,
+            TokenKindDiscriminants::And => And,
+            TokenKindDiscriminants::Or => Or,
+            TokenKindDiscriminants::Concat => Concat,
+            TokenKindDiscriminants::BitAnd => BitAnd,
+            TokenKindDiscriminants::BitOr => BitOr,
+            TokenKindDiscriminants::BitXor => BitXor,
+            TokenKindDiscriminants::Shl => Shl,
+            TokenKindDiscriminants::Shr => Shr,
+            _ => return Err(()),
+        };
+        Ok(res)
+    }
+}
 #[derive(Clone, Debug)]
 pub enum UnaryOp {
     BitNot,
     Not,
     Len,
     Neg,
+}
+
+impl TryFrom<TokenKindDiscriminants> for UnaryOp {
+    type Error = ();
+    fn try_from(value: TokenKindDiscriminants) -> Result<Self, Self::Error> {
+        let res = match value {
+            TokenKindDiscriminants::BitXor => UnaryOp::BitNot,
+            TokenKindDiscriminants::Not => UnaryOp::Not,
+            TokenKindDiscriminants::Len => UnaryOp::Len,
+            TokenKindDiscriminants::Minus => UnaryOp::Neg,
+            _ => return Err(()),
+        };
+        Ok(res)
+    }
 }
 
 #[derive(Clone, Debug)]

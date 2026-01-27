@@ -63,6 +63,12 @@ pub enum TokenKind {
     Eof,
 }
 
+impl TokenKind {
+    pub fn discriminant(&self) -> TokenKindDiscriminants {
+        TokenKindDiscriminants::from(self)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
