@@ -4,8 +4,8 @@ use strum::EnumDiscriminants;
 pub enum TokenKind {
     Identifier(String),
     LiteralString(String),
-    LiteralFloat(f64),
-    LiteralInt(i64),
+    LiteralDouble(f64),
+    LiteralInteger(i64),
     LiteralBoolean(bool),
     LiteralNil,
     Assign,

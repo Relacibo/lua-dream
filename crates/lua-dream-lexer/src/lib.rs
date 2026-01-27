@@ -336,83 +336,80 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
 
                     loop {
                         match self.next()? {
-                            Some('\\') => {
-                                match self.next()? {
-                                    Some('n') => string_builder.push('\n'),
-                                    Some('t') => string_builder.push('\t'),
-                                    Some('r') => string_builder.push('\r'),
-                                    Some('\\') => string_builder.push('\\'),
-                                    Some('\n') => string_builder.push('\n'),
-                                    Some('z') => {
-                                        self.peeking_skip_while(|c| c.is_whitespace())?;
+                            Some('\\') => match self.next()? {
+                                Some('n') => string_builder.push('\n'),
+                                Some('t') => string_builder.push('\t'),
+                                Some('r') => string_builder.push('\r'),
+                                Some('\\') => string_builder.push('\\'),
+                                Some('\n') => string_builder.push('\n'),
+                                Some('z') => {
+                                    self.peeking_skip_while(|c| c.is_whitespace())?;
+                                }
+                                Some('x') => {
+                                    let hex_slice = self.peek(2)?;
+                                    let Ok(code) = u8::from_str_radix(
+                                        &hex_slice.iter().collect::<String>(),
+                                        16,
+                                    ) else {
+                                        todo!("Invalid hex escape")
+                                    };
+                                    let _ = self.skip(2);
+                                    string_builder.push(code as char);
+                                }
+                                Some('u') => {
+                                    let Some(c) = self.next()? else {
+                                        todo!("Error: unexpected eof")
+                                    };
+
+                                    if c != '{' {
+                                        todo!("Error: unexpected symbol");
                                     }
-                                    Some('x') => {
-                                        let hex_slice = self.peek(2)?;
-                                        let Ok(code) = u8::from_str_radix(
-                                            &hex_slice.iter().collect::<String>(),
-                                            16,
-                                        ) else {
-                                            todo!("Invalid hex escape")
-                                        };
-                                        let _ = self.skip(2);
-                                        string_builder.push(code as char);
+
+                                    let c = self.take_while(&mut buf, |c| c.is_ascii_hexdigit())?;
+
+                                    match c {
+                                        Some('}') => {}
+                                        None => todo!("Error: unexpected eof"),
+                                        _ => todo!("Error: unexpected symbol"),
                                     }
-                                    Some('u') => {
-                                        let Some(c) = self.next()? else {
-                                            todo!("Error: unexpected eof")
-                                        };
-
-                                        if c != '{' {
-                                            todo!("Error: unexpected symbol");
-                                        }
-
-                                        let c = self.take_while(&mut buf, |c| c.is_ascii_hexdigit())?;
-
-                                        match c {
-                                            Some('}') => {}
-                                            None => todo!("Error: unexpected eof"), 
-                                            _ => todo!("Error: unexpected symbol"),
-                                        }
-                                        let Ok(t) = u32::from_str_radix(&buf, 16) else {
-                                            buf.clear();
-                                            todo!("Error: convert hex to u32 failed");
-                                        };
+                                    let Ok(t) = u32::from_str_radix(&buf, 16) else {
                                         buf.clear();
-                                        let Some(t) = char::from_u32(t) else{
-                                            todo!("Error: convert hex to u32 failed");
-                                        };
-                                        string_builder.push(t);
-                                            
-                                    }
-                                    Some(c) if c.is_ascii_digit() => {
-                                        let mut val = c.to_digit(10).unwrap();
+                                        todo!("Error: convert hex to u32 failed");
+                                    };
+                                    buf.clear();
+                                    let Some(t) = char::from_u32(t) else {
+                                        todo!("Error: convert hex to u32 failed");
+                                    };
+                                    string_builder.push(t);
+                                }
+                                Some(c) if c.is_ascii_digit() => {
+                                    let mut val = c.to_digit(10).unwrap();
 
-                                        if let [d2] =
-                                            self.peek(1)? && d2.is_ascii_digit()
+                                    if let [d2] = self.peek(1)?
+                                        && d2.is_ascii_digit()
+                                    {
+                                        val = val * 10 + d2.to_digit(10).unwrap();
+                                        let _ = self.skip(1);
+
+                                        if let [d3] = self.peek(1)?
+                                            && d3.is_ascii_digit()
                                         {
-                                            val = val * 10 + d2.to_digit(10).unwrap();
-                                            let _ = self.skip(1);
-
-                                            if let [d3] =
-                                                self.peek(1)? && d3.is_ascii_digit()
-                                            {
-                                                let val3 = val * 10 + d3.to_digit(10).unwrap();
-                                                if val3 <= 255 {
-                                                    val = val3;
-                                                    let _ = self.skip(1);
-                                                }
+                                            let val3 = val * 10 + d3.to_digit(10).unwrap();
+                                            if val3 <= 255 {
+                                                val = val3;
+                                                let _ = self.skip(1);
                                             }
                                         }
-                                        string_builder.push(val as u8 as char);
                                     }
-                                    Some(c @ ('"' | '\'')) => string_builder.push(c),
-                                    Some(c) => {
-                                        eprintln!("Unknown escape character: {c}");
-                                        string_builder.push(c);
-                                    }
-                                    None => todo!("Error: Unfinished escape sequence"),
+                                    string_builder.push(val as u8 as char);
                                 }
-                            }
+                                Some(c @ ('"' | '\'')) => string_builder.push(c),
+                                Some(c) => {
+                                    eprintln!("Unknown escape character: {c}");
+                                    string_builder.push(c);
+                                }
+                                None => todo!("Error: Unfinished escape sequence"),
+                            },
                             Some(c) if c == quote_char => break, // String zu Ende
                             Some('\n') | None => todo!("Error: Unfinished string literal"),
                             Some(c) => string_builder.push(c),
@@ -457,17 +454,17 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                     if is_hex {
                         if has_dot || has_exp {
                             let val = parse_lua_hex_float(&buf);
-                            TokenKind::LiteralFloat(val)
+                            TokenKind::LiteralDouble(val)
                         } else {
                             let val = i64::from_str_radix(&buf, 16).expect("Invalid hex int");
-                            TokenKind::LiteralInt(val)
+                            TokenKind::LiteralInteger(val)
                         }
                     } else if has_dot || has_exp {
                         let val: f64 = buf.parse().expect("Invalid float");
-                        TokenKind::LiteralFloat(val)
+                        TokenKind::LiteralDouble(val)
                     } else {
                         let val: i64 = buf.parse().expect("Invalid int");
-                        TokenKind::LiteralInt(val)
+                        TokenKind::LiteralInteger(val)
                     }
                 }
                 a if a.is_alphabetic() || a == '_' => {
