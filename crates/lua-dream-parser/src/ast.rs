@@ -97,7 +97,7 @@ pub enum Attribute {
 #[derive(Clone, Debug)]
 pub struct TableRow {
     pub key: Expression,
-    pub expr: Expression,
+    pub value: Expression,
 }
 
 #[derive(Clone, Debug)]

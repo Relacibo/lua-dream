@@ -7,7 +7,7 @@ use lua_dream_lexer::token::{Token, TokenKind, TokenKindDiscriminants};
 use crate::{
     ast::{
         Attribute, BinaryOp, Block, Branch, ControlStatement, ElseBranch, Expression,
-        ExpressionDiscriminants, Statement, UnaryOp,
+        ExpressionDiscriminants, Statement, TableRow, UnaryOp,
     },
     error::Error,
 };
@@ -355,49 +355,84 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary(&mut self) -> Result<Expression, Error> {
-        let token = self.peek_token().clone();
-        match token.kind {
+        let token = self.next_token().clone();
+        let res = match token.kind {
             TokenKind::LiteralInteger(n) => {
                 self.skip_token();
-                Ok(Expression::Integer(n))
+                Expression::Integer(n)
             }
             TokenKind::LiteralDouble(n) => {
                 self.skip_token();
-                Ok(Expression::Double(n))
+                Expression::Double(n)
             }
             TokenKind::LiteralString(s) => {
                 self.skip_token();
-                Ok(Expression::String(s))
+                Expression::String(s)
             }
             TokenKind::LiteralBoolean(b) => {
                 self.skip_token();
-                Ok(Expression::Boolean(b))
+                Expression::Boolean(b)
             }
             TokenKind::LiteralNil => {
                 self.skip_token();
-                Ok(Expression::Nil)
+                Expression::Nil
             }
 
             TokenKind::ParenOpen => {
                 self.skip_token();
                 let expr = self.parse_expression()?;
                 self.expect_token_discriminant(TokenKindDiscriminants::ParenClose)?;
-                Ok(expr)
+                expr
             }
 
             TokenKind::Minus | TokenKind::Not | TokenKind::Len | TokenKind::BitXor => {
                 self.skip_token();
                 let op = UnaryOp::try_from(token.kind.discriminant()).unwrap();
                 let val = self.parse_expression_min_presendence(10)?;
-                Ok(Expression::UnaryOp {
+                Expression::UnaryOp {
                     op,
                     val: Box::new(val),
-                })
+                }
             }
 
             TokenKind::CurlyBracesOpen => {
-                // self.parse_table_constructor()
-                todo!()
+                self.skip_token();
+                let mut elems = Vec::new();
+                loop {
+                    let in_brackets = self
+                        .next_token_if_discriminant(TokenKindDiscriminants::BracketsOpen)
+                        .is_some();
+                    let key = if in_brackets {
+                        let token =
+                            self.expect_token_discriminant(TokenKindDiscriminants::Identifier)?;
+                        let TokenKind::Identifier(key) = token.kind.clone() else {
+                            return Err(Error::UnexpectedToken(token.clone()));
+                        };
+                        self.expect_token_discriminant(TokenKindDiscriminants::BracketsClose)?;
+                        Expression::String(key)
+                    } else {
+                        match self.parse_expression() {
+                            Ok(expr) => expr,
+                            Err(Error::UnexpectedToken(tk))
+                                if tk.kind.discriminant()
+                                    == TokenKindDiscriminants::CurlyBracesClose =>
+                            {
+                                break;
+                            }
+                            Err(err) => return Err(err),
+                        }
+                    };
+                    self.expect_token_discriminant(TokenKindDiscriminants::Assign)?;
+                    let value = self.parse_expression()?;
+                    elems.push(TableRow { key, value });
+                    let token = self.next_token();
+                    match token.kind.discriminant() {
+                        TokenKindDiscriminants::Comma | TokenKindDiscriminants::Semicolon => {}
+                        TokenKindDiscriminants::CurlyBracesClose => break,
+                        _ => return Err(Error::UnexpectedToken(token.clone())),
+                    }
+                }
+                Expression::Table(elems)
             }
 
             TokenKind::Identifier(_) => {
@@ -405,8 +440,9 @@ impl<'a> Parser<'a> {
                 todo!()
             }
 
-            _ => Err(Error::UnexpectedToken(token)),
-        }
+            _ => return Err(Error::UnexpectedToken(token)),
+        };
+        Ok(res)
     }
 
     fn parse_expression(&mut self) -> Result<Expression, Error> {
@@ -428,7 +464,7 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            self.next_token();
+            self.skip_token();
 
             let right = self.parse_expression_min_presendence(precedence + 1)?;
 
