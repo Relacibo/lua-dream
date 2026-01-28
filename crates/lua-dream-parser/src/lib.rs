@@ -171,6 +171,19 @@ impl<'a> Parser<'a> {
                     let expression = self.parse_expression().ok();
                     StatementResult::Statement(Statement::Assign { name, expression })
                 } else {
+                    let token =  self.next_token();
+                    if self.next_token_if_discriminant(TokenKindDiscriminants::Colon).is_some() {
+                        let TokenKind::Identifier(iden) = self.expect_token_discriminant(TokenKindDiscriminants::Identifier)?.kind else {
+                        unreachable!();
+                        };
+
+                    }
+                    match token.kind.discriminant(){
+                        TokenKindDiscriminants::Colon => {
+                            
+                        }
+                        TokenKindDiscriminants::ParenOpen
+                    }
                     // self.parse_prefix_expression()
                     todo!("parse function call statements")
                 }
@@ -355,7 +368,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary(&mut self) -> Result<Expression, Error> {
-        let token = self.next_token().clone();
+        let token = self.peek_token().clone();
         let res = match token.kind {
             TokenKind::LiteralInteger(n) => {
                 self.skip_token();
@@ -403,24 +416,17 @@ impl<'a> Parser<'a> {
                         .next_token_if_discriminant(TokenKindDiscriminants::BracketsOpen)
                         .is_some();
                     let key = if in_brackets {
-                        let token =
-                            self.expect_token_discriminant(TokenKindDiscriminants::Identifier)?;
-                        let TokenKind::Identifier(key) = token.kind.clone() else {
-                            return Err(Error::UnexpectedToken(token.clone()));
-                        };
+                        let res = self.parse_expression()?;
                         self.expect_token_discriminant(TokenKindDiscriminants::BracketsClose)?;
-                        Expression::String(key)
+                        res
                     } else {
-                        match self.parse_expression() {
-                            Ok(expr) => expr,
-                            Err(Error::UnexpectedToken(tk))
-                                if tk.kind.discriminant()
-                                    == TokenKindDiscriminants::CurlyBracesClose =>
-                            {
-                                break;
-                            }
-                            Err(err) => return Err(err),
-                        }
+                        let token = self.next_token();
+                        let key = match &token.kind {
+                            TokenKind::Identifier(key) => key.clone(),
+                            TokenKind::CurlyBracesClose => break,
+                            _ => return Err(Error::UnexpectedToken(token.clone())),
+                        };
+                        Expression::String(key)
                     };
                     self.expect_token_discriminant(TokenKindDiscriminants::Assign)?;
                     let value = self.parse_expression()?;
@@ -437,6 +443,7 @@ impl<'a> Parser<'a> {
 
             TokenKind::Identifier(_) => {
                 // self.parse_prefix_expression()
+                dbg!(&token);
                 todo!()
             }
 
@@ -465,7 +472,6 @@ impl<'a> Parser<'a> {
             }
 
             self.skip_token();
-
             let right = self.parse_expression_min_presendence(precedence + 1)?;
 
             left = Expression::BinaryOp {
