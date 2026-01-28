@@ -34,6 +34,11 @@ fn main() -> io::Result<()> {
         .tokenize()
         .unwrap();
 
+    // dbg!(std::mem::size_of::<lua_dream_parser::ast::Expression>());
+    // dbg!(std::mem::size_of::<lua_dream_parser::ast::Statement>());
+    // dbg!(std::mem::size_of::<lua_dream_parser::ast::ElseBranch>());
+    // dbg!(std::mem::size_of::<lua_dream_parser::ast::Branch>());
+
     // dbg!(&tokens);
     let ast = Parser::new(&tokens).parse_block();
     dbg!(&ast);

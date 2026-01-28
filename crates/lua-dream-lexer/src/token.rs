@@ -35,6 +35,7 @@ pub enum TokenKind {
     Comma,
     Semicolon,
     Varargs,
+    Dot,
     Colon,
     DoubleColon,
     ParenOpen,

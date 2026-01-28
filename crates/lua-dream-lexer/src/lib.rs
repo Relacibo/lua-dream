@@ -329,6 +329,14 @@ impl<'a, T: BufRead + ?Sized> Lexer<'a, T> {
                         TokenKind::Concat
                     }
                 }
+                '.' if self
+                    .peek(1)?
+                    .first()
+                    .map(|c| !c.is_ascii_digit())
+                    .unwrap_or_default() =>
+                {
+                    TokenKind::Dot
+                }
                 '#' => TokenKind::Len,
                 '"' | '\'' => {
                     let quote_char = next_char;

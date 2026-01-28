@@ -18,6 +18,7 @@ pub enum Expression {
     Integer(i64),
     String(String),
     Boolean(bool),
+    Identifier(String),
     Nil,
     Varargs,
     UnaryOp {
@@ -30,7 +31,12 @@ pub enum Expression {
         right: Box<Expression>,
     },
     Table(Vec<TableRow>),
-    Call(FunctionCall),
+    FunctionCall(Box<FunctionCall>),
+    Index {
+        table: Box<Expression>,
+        key: Box<Expression>,
+    },
+    MethodCall(Box<MethodCall>),
 }
 
 #[derive(Clone, Debug)]
@@ -55,36 +61,16 @@ pub enum Statement {
         name: String,
         expression: Option<Expression>,
     },
-    If(Branch),
-    For {
-        variable_name: String,
-        from: Expression,
-        to: Expression,
-        increment: Expression,
-        do_block: Block,
-    },
-    ForGeneric {
-        variable_names: Vec<String>,
-        iterators: Vec<Expression>,
-        do_block: Block,
-    },
-    While {
-        condition: Expression,
-        do_block: Block,
-    },
-    Repeat {
-        repeat_block: Block,
-        until: Expression,
-    },
+    If(Box<Branch>),
+    For(Box<ForLoop>),
+    ForGeneric(Box<ForGenericLoop>),
+    While(Box<WhileLoop>),
+    Repeat(Box<RepeatUntilLoop>),
     Label(String),
     Goto(String),
-    Function {
-        name: String,
-        args: Vec<Expression>,
-        has_varargs: bool,
-        block: Block,
-    },
-    Call(FunctionCall),
+    Function(Box<FunctionDecl>),
+    FunctionCall(Box<FunctionCall>),
+    MethodCall(Box<MethodCall>),
 }
 
 #[derive(Clone, Debug, strum::EnumString)]
@@ -95,9 +81,9 @@ pub enum Attribute {
 }
 
 #[derive(Clone, Debug)]
-pub struct TableRow {
-    pub key: Expression,
-    pub value: Expression,
+pub enum TableRow {
+    KeyValue { key: Expression, value: Expression },
+    ListElem(Expression),
 }
 
 #[derive(Clone, Debug)]
@@ -221,6 +207,49 @@ pub enum ElseBranch {
 
 #[derive(Clone, Debug)]
 pub struct FunctionCall {
-    pub prefix: Box<Expression>,
+    pub prefix: Expression,
     pub arguments: Vec<Expression>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MethodCall {
+    pub prefix: Expression,
+    pub method_name: String,
+    pub arguments: Vec<Expression>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ForLoop {
+    pub variable_name: String,
+    pub from: Expression,
+    pub to: Expression,
+    pub increment: Expression,
+    pub do_block: Block,
+}
+
+#[derive(Clone, Debug)]
+pub struct FunctionDecl {
+    pub name: String,
+    pub args: Vec<String>,
+    pub has_varargs: bool,
+    pub block: Block,
+}
+
+#[derive(Clone, Debug)]
+pub struct ForGenericLoop {
+    pub variable_names: Vec<String>,
+    pub iterators: Vec<Expression>,
+    pub do_block: Block,
+}
+
+#[derive(Clone, Debug)]
+pub struct WhileLoop {
+    pub condition: Expression,
+    pub do_block: Block,
+}
+
+#[derive(Clone, Debug)]
+pub struct RepeatUntilLoop {
+    pub repeat_block: Block,
+    pub until: Expression,
 }

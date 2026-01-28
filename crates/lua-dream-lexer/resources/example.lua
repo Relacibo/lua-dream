@@ -78,6 +78,16 @@ local multi_line_text = [==[
     without ending prematurely.
 ]==]
 
+-- Method calls
+local account = { balance = 100 }
+
+function account:deposit(amount)
+    self.balance = self.balance + amount
+end
+
+-- Hier ist der Method Call:
+account:deposit(50)
+
 -- Special Operators
 local args = ...
 local output = config:get_data()
@@ -98,5 +108,12 @@ local long_line = "Das ist ein \z
 -- Ein Backslash am Ende der Zeile (erzeugt ein echtes Newline)
 local line_break = "Erste Zeile\
 Zweite Zeile"
+
+-- for loops
+local sum = 0
+for i = 1, 10 do
+    sum = sum + i
+    config.last_index = i
+end
 
 -- End of file
